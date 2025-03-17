@@ -3,22 +3,20 @@ from importlib import resources
 import os
 import shutil
 import sys
+import subprocess
+from datetime import datetime
+
 import nnt_cli
 
-from .core_utils import find_files, select_template_interactive
+from .core_utils import find_files, select_template_interactive, run_git, init_repo
 from .gen_init import generate_package_init
 
 nnt_path=Path(nnt_cli.__file__).parent
 
-CUS_TDIR = nnt_path / "custom_templates"
-CUS_UDIR = nnt_path / "custom_utils"
+CUS_DIR= nnt_path / "custom"
 
-global custom_tpath
-custom_tpath = CUS_TDIR
-
-global custom_upath
-
-custom_upath = CUS_UDIR
+CUS_TDIR = CUS_DIR / "custom_templates"
+CUS_UDIR = CUS_DIR / "custom_utils"
 
 global builtin_tpath
 builtin_tpath = resources.files("nnt_cli.templates")
@@ -28,7 +26,7 @@ builtin_upath = resources.files("nnt_cli.utils")
 
 def copy_template(args):
 
-    search_paths = [custom_tpath, builtin_tpath]
+    search_paths = [CUS_TDIR, builtin_tpath]
 
     found_files = find_files(args.template_name, search_paths)
 
@@ -51,13 +49,36 @@ def copy_template(args):
         print(f"Copy failed: {str(e)}")
         sys.exit(1)
 
+def del_files(args):
+    """Delete files in custom directory"""
+    search_paths = [CUS_TDIR, CUS_UDIR]
+
+    found_files = find_files(args.file_name, search_paths)
+
+    if not found_files:
+        print(f"Error: Can't find template {args.file_name}")
+        sys.exit(1)
+
+    selected_path = (found_files[0] if len(found_files) == 1 
+                    else select_template_interactive(found_files))
+    try:
+        
+        os.remove(selected_path)
+        print(f"Deleted successfully: {selected_path}")
+
+    except Exception as e:
+        print(f"Deleted failed: {str(e)}")
+        sys.exit(1)
+
+    generate_package_init(CUS_DIR,recursive=True)
+
 def save_files(args):
     """Save template to global directory"""
 
     if args.utils is True:
-        save_dir = custom_upath
+        save_dir = CUS_UDIR
     else:
-        save_dir = custom_tpath
+        save_dir = CUS_TDIR
 
     src = Path(args.file_path)
     dest = save_dir / src.name
@@ -87,44 +108,44 @@ def list_files(args):
 
     # Custom
     custom_templates = []
-    if custom_tpath.exists():
-        for file in custom_tpath.glob("*"):
-            if file.stem != "__init__":
-                custom_templates.append(file.stem)
+    if CUS_TDIR.exists():
+        for file in CUS_TDIR.iterdir():
+            if file.name != "__init__.py" and file.name != "__pycache__":
+                custom_templates.append(file.name)
     
     custom_utils=[]
-    if custom_upath.exists():
-        for py_file in custom_upath.glob("*.py"):
-            if py_file.stem != "__init__":
-                custom_utils.append(py_file.stem)
-
-    # Merge and deduplicate (custom priority)
-    all_templates = {}
-
-    for name in builtin_templates:
-        all_templates[name] = {"loc":"Internal"}
-            
-    for name in custom_templates:
-        all_templates[name] = {"loc":"Custom"}
-    
-    for name in custom_utils:
-        all_templates[name] = {"loc":"Custom Utils"}
+    if CUS_UDIR.exists():
+        for file in CUS_UDIR.iterdir():
+            if file.name != "__init__.py" and file.name != "__pycache__":
+                custom_utils.append(file.name)
 
     print("Available Files:")
-    for name, tar_dict in sorted(all_templates.items()):
+
+    print("=================Internal Template====================")
+    for name in builtin_templates:
         tar_path=""
         if args.path is True:
-            if tar_dict["loc"] == "Internal":
-                tar_path=builtin_tpath / name
-            elif tar_dict["loc"] == "Custom":
-                tar_path=custom_tpath / name
-            elif tar_dict["loc"] == "Custom Utils":
-                tar_path=custom_upath / name
-        print(f" - {name}: [{tar_dict['loc']}] {tar_path}")
+            tar_path=builtin_tpath / name
+        print(f" - {name}: [Internal Template] {tar_path}")
+
+    print("=================Custom Template======================")    
+    for name in custom_templates:
+        tar_path=""
+        if args.path is True:
+            tar_path=CUS_TDIR / name
+        print(f" - {name}: [Custom Template] {tar_path}")
+
+    print("=================Custom Utils=========================")
+    for name in custom_utils:
+        tar_path=""
+        if args.path is True:
+            tar_path=CUS_UDIR / name
+        print(f" - {name}: [Custom Utils] {tar_path}")
 
 def create_project(args):
     """Create new project"""
-    target_dir = Path(args.target_dir).resolve() / args.project_name
+    proj_name=str.capitalize(args.project_name)
+    target_dir = Path(args.target_dir).resolve() / proj_name
     if target_dir.exists():
         print(f"Error: The directory already exists - {target_dir}")
         return
@@ -166,9 +187,73 @@ def create_project(args):
         with open(file, "r", encoding="utf-8") as f:
             content = f.read()
         if os.path.basename(file) == "pro_temp.py" and temp_flag:
-            content = content.replace(args.template, args.project_name)
+            content = content.replace(args.template, proj_name)
         else:
-            content = content.replace("_Project_", args.project_name + "_")
+            content = content.replace("_Project_", proj_name + "_")
         with open(file, "w", encoding="utf-8") as f:
             f.write(content)
         print(f"Rename the file - {file}")
+
+def export_custom(args):
+    export_dir = Path(args.export_dir).resolve()
+
+    if not export_dir.exists():
+        raise FileNotFoundError(f"Error: The target directory does not exist - {export_dir}")
+    
+    shutil.copytree(CUS_DIR, export_dir/"custom")
+    print(f"Custom files are exported to {export_dir}")
+
+def import_custom(args):
+    import_dir = Path(args.import_dir).resolve()
+
+    if import_dir.is_file():
+        raise FileExistsError("Import object must be a folder! Use `save-file` to save file.")
+
+    if not import_dir.exists():
+        raise FileNotFoundError(f"Error: The target directory does not exist - {import_dir}")
+    
+    shutil.copytree(str(import_dir), str(CUS_DIR),ignore=shutil.ignore_patterns('.git', '*.git*'),dirs_exist_ok=True)
+    print(f"Custom folder {import_dir} are imported to {CUS_DIR}.")
+
+    generate_package_init(CUS_DIR,recursive=True)
+
+    
+def git_proxy(args):
+    """Proxy all git commands to custom code directory"""
+    custom_path = CUS_DIR
+    
+    custom_path.mkdir(exist_ok=True)
+    
+    git_cmd = ["git", "-C", str(custom_path)] + args.git_args
+    
+    run_git(args.git_args,custom_path, save_log=False)
+
+    
+def sync_command(args):
+    """One-step synchronization of custom code"""
+    custom_path = CUS_DIR
+
+    try:
+        if args.init:
+            print("First time to sync, initializing...")
+            init_repo(custom_path)
+            run_git(["branch","-M",args.branch],custom_path)
+
+        else:
+            print("Automatically submit local modifications...")
+            run_git(["add", "."],custom_path)
+            run_git(["commit", "-m", f"Auto commit: {datetime.now().isoformat()}"],custom_path)
+            
+            print("Getting the latest version...")
+            run_git(["pull", "--rebase", "origin", args.branch],custom_path)
+
+            print("Push changes to remote repository...")
+            run_git(["push", "origin", args.branch],custom_path)
+            
+            print(f"Synchronization is complete! Branches: {args.branch}")
+        
+    except subprocess.CalledProcessError as e:
+        print(f"Synchronization failed: {e.stdout}. You can manually use `nnt git` to commit changes.")
+        sys.exit(1)
+    
+    generate_package_init(CUS_DIR,recursive=True)

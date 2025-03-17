@@ -1,4 +1,9 @@
 from pathlib import Path
+import subprocess
+from datetime import datetime
+import sys
+import os
+
 
 def find_files(template_name, search_paths):
     """Search for template files in multiple directories"""
@@ -8,9 +13,9 @@ def find_files(template_name, search_paths):
         if search_path.exists():
             found_files.append(search_path)
             
-        for f in Path(path).rglob(template_name):
-            if f.is_file():
-                found_files.append(f)
+        # for f in Path(path).rglob(template_name):
+        #     if f.is_file():
+        #         found_files.append(f)
     if not found_files:
         raise FileNotFoundError(f"Can't find {template_name} in directories.")
 
@@ -30,3 +35,71 @@ def select_template_interactive(found_files):
             print("Entering the number out of range, please re-enter")
         except ValueError:
             print("Please enter a valid number")
+
+def run_git(cmd, custom_path, save_log=True, echo=True):
+        """Execute Git commands and log logs"""
+        log_file = custom_path / "sync.log"
+        full_cmd = ["git", "-C", str(custom_path)] + cmd
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        try:
+            result = subprocess.run(
+                full_cmd,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            if echo:
+                for line in result.stdout:
+                    print(line, end='')
+            
+            if save_log:
+                log = f"[{timestamp}] SUCCESS: {' '.join(full_cmd)}\n{result.stdout}\n"
+            
+            # result.wait()
+            # sys.exit(result.returncode)
+
+        except subprocess.CalledProcessError as e:
+            if save_log:
+                log = f"[{timestamp}] ERROR: {' '.join(full_cmd)}\n{e.stdout}\n"
+            raise e
+        
+        except FileNotFoundError:
+            print("Error: Git was not found, please install Git first")
+            sys.exit(1)
+        
+        if save_log:
+            with open(log_file, "a") as f:
+                f.write(log + "\n")
+        return result
+
+def run_git_script(script_file,repo_path, branch):
+    env = os.environ.copy()
+    env.update({
+        "REPO_PATH": repo_path,
+        "Branch": branch
+    })
+    
+    try:
+        result = subprocess.run(
+            [f"./{script_file}"],
+            env=env,
+            check=True,
+            text=True,
+            capture_output=True
+        )
+        print("Output:", result.stdout)
+    except subprocess.CalledProcessError as e:
+        print("Error:", e.stderr)
+
+GITIGNORE_CONTENT = """
+*.pyc
+__pycache__
+sync.log
+"""
+def init_repo(custom_path):
+    gitignore = custom_path / ".gitignore"
+    if not gitignore.exists():
+        print("Generating a new gitignore file.")
+        gitignore.write_text(GITIGNORE_CONTENT)
