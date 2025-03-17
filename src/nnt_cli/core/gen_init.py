@@ -7,7 +7,8 @@ def generate_package_init(
     recursive: bool = False,
     parent_pkg: Optional[str] = None,
     exclude_dirs: List[str] = None,
-    exclude_files: List[str] = None
+    exclude_files: List[str] = None,
+    echo: bool = True,
 ) -> None:
     """
     Automatically generate the __init__.py file of the package, explicitly import all subpackages and modules (IDE-friendly)
@@ -18,7 +19,7 @@ def generate_package_init(
         parent_pkg: Full path to the parent package (used when recursive internally, without manual specification)
         exclude_dirs: Excluded directory names (such as ["tests", "docs"])
         exclude_files: Excluded file name (such as ["_private.py"])
-
+        echo: Do not print details.
     Example:
         generate_package_init("your_package", recursive=True)
     """
@@ -76,7 +77,8 @@ def generate_package_init(
     with init_file.open("w", encoding="utf-8", newline="\n") as f:
         f.write(new_content.strip() + "\n")
 
-    print(f"Update {init_file}: {len(subpackages)} subpackages, {len(modules)} modules")
+    if echo is True:
+        print(f"Update {init_file}: {len(subpackages)} subpackages, {len(modules)} modules")
 
     if recursive:
         for sub in subpackages:

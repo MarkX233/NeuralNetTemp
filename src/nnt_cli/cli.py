@@ -1,6 +1,6 @@
 import argparse
 
-from core.funct import *
+from core.funct import save_files, list_files, copy_template, create_project
 
 def main():
 
@@ -39,7 +39,7 @@ def main():
         help="Copy template to target directory"
     )
     copy_parser.add_argument("template_name", help="template name")
-    copy_parser.add_argument("target_dir", default=".", help="target directory")
+    copy_parser.add_argument("target_dir", nargs="?", default=".", help="target directory")
     copy_parser.set_defaults(func=copy_template)
 
     # create-project
@@ -49,7 +49,8 @@ def main():
         help="Create a new project from template"
     )
     create_parser.add_argument("project_name", help="Project name")
-    create_parser.add_argument("-t","--template_name", help="Template name")
+    create_parser.add_argument("target_dir", nargs="?", default=".", help="Target directory")
+    create_parser.add_argument("-t","--template_name", default=None, help="Template name")
     create_parser.set_defaults(func=create_project)
 
     

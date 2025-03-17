@@ -14,7 +14,7 @@ sys.path.append(parent_dir)
 
 from nnt_cli.utils.parallel_run.parallel_run_dyn import DynamicAssignTaskOnGPU
 
-class DynTaskRunner_Project_(DynamicAssignTaskOnGPU):
+class DynTaskRunner__Project_(DynamicAssignTaskOnGPU):
     def set_task(self):
 
         self.notebooks_task = [
@@ -26,4 +26,4 @@ class DynTaskRunner_Project_(DynamicAssignTaskOnGPU):
         ]
 
 if __name__ == "__main__":
-    runner = DynTaskRunner_Project_()
+    runner = DynTaskRunner__Project_()

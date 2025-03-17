@@ -1,25 +1,30 @@
 from pathlib import Path
 from importlib import resources
-import pkgutil
 import os
 import shutil
 import sys
+import nnt_cli
 
 from .core_utils import find_files, select_template_interactive
 from .gen_init import generate_package_init
 
+nnt_path=Path(nnt_cli.__file__).parent
+
+CUS_TDIR = nnt_path / "custom_templates"
+CUS_UDIR = nnt_path / "custom_utils"
+
 global custom_tpath
-custom_tpath = Path.home() / ".nnt_cli" / "custom_templates"
+custom_tpath = CUS_TDIR
 
 global custom_upath
 
-custom_upath = Path.home() / ".nnt_cli" / "custom_utils"
+custom_upath = CUS_UDIR
 
 global builtin_tpath
-builtin_tpath = Path(__file__).parent / "templates"
+builtin_tpath = resources.files("nnt_cli.templates")
 
 global builtin_upath
-builtin_upath = Path(__file__).parent / "utils"
+builtin_upath = resources.files("nnt_cli.utils")
 
 def copy_template(args):
 
@@ -60,25 +65,25 @@ def save_files(args):
     save_dir.mkdir(parents=True,exist_ok=True)
 
     if dest.exists() and not args.force:
-        print(f"Template {dest.name} already exists, use `--force` to overwrite it!")
+        print(f"File {dest.name} already exists, use `--force` to overwrite it!")
         return
     try:
         shutil.copy(src, dest)
-        print(f"Template is saved at: {dest}")
+        print(f"File is saved at: {dest}")
     except Exception as e:
         print(f"Copy failed: {str(e)}")
         sys.exit(1)
 
     # Regenerate __init__.py file to add newly saved templates.
-    generate_package_init("nnt_cli",recursive=True)
+    generate_package_init(CUS_UDIR if args.utils else CUS_TDIR,recursive=True)
 
 def list_files(args):
     """List all templates or custom utils"""
     # Internal
     builtin_templates = []
-    for module_info in pkgutil.iter_modules([str(builtin_tpath)]):
-        if module_info.name != "__init__":
-            builtin_templates.append(module_info.name)
+    for file in builtin_tpath.iterdir():
+        if file.name != "__init__.py" and file.name != "__pycache__":
+            builtin_templates.append(file.name)
 
     # Custom
     custom_templates = []
@@ -119,18 +124,18 @@ def list_files(args):
 
 def create_project(args):
     """Create new project"""
-    target_dir = Path(args.dir).resolve() / args.project_name
+    target_dir = Path(args.target_dir).resolve() / args.project_name
     if target_dir.exists():
         print(f"Error: The directory already exists - {target_dir}")
         return
     
-    if args.template:
+    if hasattr(args,"template") and args.template is not None:
         # Use indicated template
-
         template_path=find_files(args.template)
-
+        temp_flag=True
     else:
         # Use internal template
+        temp_flag=False
         template_path = builtin_tpath / "pro_temp.py"
         if not template_path.exists():
             print(f"Error: Not found default template - {template_path}")
@@ -149,21 +154,21 @@ def create_project(args):
     task_script_file=template_path =builtin_tpath / "task_script.py"
     shutil.copy(task_script_file, target_dir)
     print(f"Copy task script: {task_script_file}")
-    rename_list.append(task_script_file)
+    rename_list.append(target_dir / "task_script.py")
 
     ipynb_file=template_path =builtin_tpath / "model.ipynb"
     shutil.copy(ipynb_file, target_dir)
     print(f"Copy model template: {ipynb_file}")
-    rename_list.append(ipynb_file)
+    rename_list.append(target_dir / "model.ipynb")
 
 
     for file in rename_list:
         with open(file, "r", encoding="utf-8") as f:
             content = f.read()
-        if os.path.basename(file) == "pro_temp.py" and args.template:
+        if os.path.basename(file) == "pro_temp.py" and temp_flag:
             content = content.replace(args.template, args.project_name)
         else:
             content = content.replace("_Project_", args.project_name + "_")
         with open(file, "w", encoding="utf-8") as f:
             f.write(content)
-        print(f"Rename the project - {args.project_name}")
+        print(f"Rename the file - {file}")
