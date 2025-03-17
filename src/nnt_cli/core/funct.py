@@ -24,26 +24,26 @@ builtin_tpath = resources.files("nnt_cli.templates")
 global builtin_upath
 builtin_upath = resources.files("nnt_cli.utils")
 
-def copy_template(args):
+def copy_files(args):
 
-    search_paths = [CUS_TDIR, builtin_tpath]
+    search_paths = [CUS_TDIR, CUS_UDIR, builtin_tpath]
 
-    found_files = find_files(args.template_name, search_paths)
+    found_files = find_files(args.file_name, search_paths)
 
     if not found_files:
-        print(f"Error: Can't find template {args.template_name}")
+        print(f"Error: Can't find files {args.file_name}")
         sys.exit(1)
 
     selected_path = (found_files[0] if len(found_files) == 1 
                     else select_template_interactive(found_files))
 
     try:
-        dest = Path(args.target_dir).resolve() / args.template_name
+        dest = Path(args.target_dir).resolve() / args.file_name
         dest.parent.mkdir(parents=True, exist_ok=True)
         
         shutil.copy(selected_path, dest)
         print(f"Created successfully: {dest}")
-        print(f"Source template: {selected_path}")
+        print(f"Source files: {selected_path}")
 
     except Exception as e:
         print(f"Copy failed: {str(e)}")
@@ -224,7 +224,7 @@ def git_proxy(args):
     
     custom_path.mkdir(exist_ok=True)
     
-    git_cmd = ["git", "-C", str(custom_path)] + args.git_args
+    # git_cmd = ["git", "-C", str(custom_path)] + args.git_args
     
     run_git(args.git_args,custom_path, save_log=False)
 
@@ -243,12 +243,13 @@ def sync_command(args):
             print("Automatically submit local modifications...")
             run_git(["add", "."],custom_path)
             run_git(["commit", "-m", f"Auto commit: {datetime.now().isoformat()}"],custom_path)
-            
-            print("Getting the latest version...")
-            run_git(["pull", "--rebase", "origin", args.branch],custom_path)
+            if not args.no_pull:
+                print("Getting the latest version...")
+                run_git(["pull", "--rebase", "origin", args.branch],custom_path)
 
-            print("Push changes to remote repository...")
-            run_git(["push", "origin", args.branch],custom_path)
+            if not args.no_push:
+                print("Push changes to remote repository...")
+                run_git(["push", "origin", args.branch],custom_path)
             
             print(f"Synchronization is complete! Branches: {args.branch}")
         

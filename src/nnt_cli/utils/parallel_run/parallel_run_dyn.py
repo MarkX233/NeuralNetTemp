@@ -5,6 +5,7 @@ import argparse
 import time
 from datetime import datetime
 from threading import Event
+import sys
 
 class DynamicAssignTaskOnGPU():
     def __init__(self):
@@ -37,15 +38,16 @@ class DynamicAssignTaskOnGPU():
         parser.add_argument("--o2t", type=bool, default=True, help="Enable or disable notebook output display in terminal.")
         parser.add_argument("--kernel", type=str, default="kernel3", help="Determine the running kernel.")
         # GPU under these 2 threshold will be considered as idle.
-        parser.add_argument("--utilt", type=int, default=10, help="GPU utilization threshold (default: 10%).")
-        parser.add_argument("--memt", type=int, default=60, help="GPU memory usage threshold (default: 60%).")
-        parser.add_argument("--stanum", type=int, default=1, help="Start number, used to name the file (default: 1).")
+        parser.add_argument("--utilt", type=int, default=10, help="GPU utilization threshold (default: 10%%).")
+        parser.add_argument("--memt", type=int, default=60, help="GPU memory usage threshold (default: 60%%).")
+        parser.add_argument("--stanum", type=int, default=1, help="Start number to name the file (default: 1).")
 
         try:
             args = parser.parse_args()
         except SystemExit:
             # Use default args for testing without command-line input
-            args = argparse.Namespace(o2t=True, kernel="kernel3",utilt=10,memt=60)
+            # args = argparse.Namespace(o2t=True, kernel="kernel3",utilt=10,memt=60, stanum=1)
+            sys.exit()
 
         self.kernel=args.kernel
         self.output2terminal=args.o2t

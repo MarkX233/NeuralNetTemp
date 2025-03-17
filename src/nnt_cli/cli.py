@@ -1,6 +1,6 @@
 import argparse
 
-from core.funct import save_files, del_files, list_files, copy_template, \
+from core.funct import save_files, del_files, list_files, copy_files, \
     create_project, export_custom, import_custom, git_proxy, sync_command
 
 def main():
@@ -40,15 +40,15 @@ def main():
         help="List the template paths.")
     list_parser.set_defaults(func=list_files)
 
-    # copy-template
+    # copy-files
     copy_parser = subparsers.add_parser(
-        "copy-template",
-        aliases=["ct"],
-        help="Copy template to target directory"
+        "copy-files",
+        aliases=["cf"],
+        help="Copy file to target directory"
     )
-    copy_parser.add_argument("template_name", help="template name")
-    copy_parser.add_argument("target_dir", nargs="?", default=".", help="target directory")
-    copy_parser.set_defaults(func=copy_template)
+    copy_parser.add_argument("file_name", help="File name you want to copy")
+    copy_parser.add_argument("target_dir", nargs="?", default=".", help="Target directory")
+    copy_parser.set_defaults(func=copy_files)
 
     # create-project
     create_parser = subparsers.add_parser(
@@ -58,7 +58,7 @@ def main():
     )
     create_parser.add_argument("project_name", help="Project name")
     create_parser.add_argument("target_dir", nargs="?", default=".", help="Target directory")
-    create_parser.add_argument("-t","--template_name", default=None, help="Template name")
+    create_parser.add_argument("-t","--template_name", default=None, help="Indicate specific template name you want to start.")
     create_parser.set_defaults(func=create_project)
 
     export_parser = subparsers.add_parser(
@@ -88,6 +88,10 @@ def main():
     #                        help='Not to automatically submit uncommitted changes')
     sync_parser.add_argument('--init', action='store_true', 
                            help='Init-setup of the remote git repo')
+    sync_parser.add_argument('--no_pull', action='store_true', 
+                           help='Do not pull form remote')
+    sync_parser.add_argument('--no_push', action='store_true', 
+                           help='Do not push to remote')
     sync_parser.set_defaults(func=sync_command)
 
 
