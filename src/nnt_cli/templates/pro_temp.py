@@ -5,41 +5,21 @@ import torchvision.transforms as transforms
 from collections import OrderedDict
 from torch.utils.data import DataLoader
 
-import nnt_cli.utils as utils
+import nnt_cli.utils as nu
 from nnt_cli.templates.gen_temp import GeneralTemplate
 
 class _Project_Template(GeneralTemplate):
     """
     Project template for specific project.
     """
-    def __init__(
-        self,
-        notebook_name,
-        para_mode,
-        debug_mode,
-        batch_size,
-        num_epochs,
-        lr,
-        beta,
-        num_hiddens,
-        match_name=None,
-        remark=None,
-    ):
+    def __init__(self,**kwargs):
         """
         Args, are the parameters that need to be set in the certain cell with `parameters` tag in the notebook,
         which means, these parameters can be set by script.
         """
 
-        self.para_mode = para_mode
-        self.debug_mode = debug_mode
-        self.batch_size = batch_size
-        self.notebook_name = notebook_name
-        self.num_epochs = num_epochs
-        self.learning_rate = lr
-        self.beta = beta
-        self.num_hiddens=num_hiddens
-        self.match_name=match_name
-        self.remark=remark
+        for key, value in kwargs.items():
+            setattr(self, key, value)
     
     def init_params(self):
         """
@@ -87,18 +67,18 @@ class _Project_Template(GeneralTemplate):
         `self.train_loader` and `self.test_loader` must be set. If you don't need inference, self.infer_loader = None.
         """
         if self.para_mode is True:
-            num_workers=utils.settin.gen_settin.get_num_workers("Dist",dist_num=4)
+            num_workers=nu.settin.gen_settin.get_num_workers("Dist",dist_num=4)
 
         elif self.debug_mode is True:
-            num_workers=utils.settin.gen_settin.get_num_workers("Half")
+            num_workers=nu.settin.gen_settin.get_num_workers("Half")
 
         else:
-            num_workers=utils.settin.gen_settin.get_num_workers("Full")
+            num_workers=nu.settin.gen_settin.get_num_workers("Full")
 
         self.train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=num_workers)
         # self.test_loader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False,num_workers=num_workers)
 
-        test_subset, infer_subset = utils.settin.gen_settin.spilt_dataset(self.infer_size, self.test_dataset)
+        test_subset, infer_subset = nu.settin.gen_settin.spilt_dataset(self.infer_size, self.test_dataset)
 
         self.test_loader = DataLoader(test_subset, batch_size=self.batch_size, shuffle=False,num_workers=num_workers)
         self.infer_loader = DataLoader(infer_subset, batch_size=self.batch_size, shuffle=False, num_workers=num_workers)
@@ -129,7 +109,7 @@ class _Project_Template(GeneralTemplate):
                 # named layer, use net.<name>.param to access
                 OrderedDict([
                     ('flaten', nn.Flatten()),
-                    ('input_sav1', utils.layer.gen_layer.InputSaviorLayer(f"{self.dir_path}/data/{self.vary_title}","input_af_quant",squeeze=False)),
+                    ('input_sav1', nu.layer.gen_layer.InputSaviorLayer(f"{self.dir_path}/data/{self.vary_title}","input_af_quant",squeeze=False)),
                     ('linear_in', nn.Linear(num_inputs, num_hiddens,bias=False,device=self.device,)),                                
                     ('batch_norm1', nn.BatchNorm1d(num_hiddens)),
                     ('relu1',nn.ReLU()),
@@ -162,6 +142,6 @@ class _Project_Template(GeneralTemplate):
         If you want to use auto plot for later results,
         `self.results` must be set at [train_l_list, train_acc_list, test_acc_list, infer_acc_list] format.
         """
-        self.results=utils.train.gen_train.train_funct(self.net, self.train_loader, self.test_loader, self.loss, self.num_epochs, 
+        self.results=nu.train.gen_train.train_funct(self.net, self.train_loader, self.test_loader, self.loss, self.num_epochs, 
             self.optimizer,device=self.device,quant_tensor=False, infer_iter=self.infer_loader)
 

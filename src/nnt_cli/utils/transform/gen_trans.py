@@ -92,3 +92,11 @@ class RandomChannelDropout():
         masked_frames[:, ~channel_mask] = self.mask_value
         
         return masked_frames
+
+class QuantlieClip():
+    def __init__(self, quantlie=0.98):
+        self.quantlie = quantlie
+    def __call__(self, frames):
+        threshold = np.quantile(frames, self.quantlie)
+        clipped_frames = np.clip(frames, a_min=None, a_max=threshold)
+        return clipped_frames

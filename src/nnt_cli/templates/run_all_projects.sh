@@ -35,6 +35,9 @@ for task in "${TASKS[@]}"; do
     start_time=$(date +'%Y-%m-%d %H:%M:%S')
     echo ">>> Start executing the task: $task | Time: $start_time" | tee -a "$LOG_FILE"
     
+    python -c "from nnt_cli.utils.settin.gen_settin import get_notebook_name; get_notebook_name("./",raise_error=False,sub_dir=True)"
+    # Check notebook name first
+
     cd "$task" || { echo "Failed to enter directory: $task" | tee -a "../$LOG_FILE"; exit 1; }
 
     case $answer in

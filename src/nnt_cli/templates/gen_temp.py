@@ -200,6 +200,19 @@ class GeneralTemplate():
         if no_plot is False:
             self.plot_final()
             self.plot_record()
+    
+    def train_continue(self,no_plot=False):
+        """
+        Do another training round after one time training.
+        Used in debug and testing
+        """
+        self.set_train()
+        self.set_store_onetime()
+        self.set_store_record()
+        if no_plot is False:
+            self.plot_final()
+            self.plot_record()
+
 
 
     def set_path(self):

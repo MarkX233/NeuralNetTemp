@@ -7,6 +7,8 @@ from datetime import datetime
 from threading import Event
 import sys
 
+from nnt_cli.utils.settin.gen_settin import get_notebook_name
+
 class DynamicAssignTaskOnGPU():
     def __init__(self):
         """
@@ -17,6 +19,7 @@ class DynamicAssignTaskOnGPU():
         """
         self.get_args()
         self.set_task()
+        get_notebook_name("./",raise_error=False,sub_dir=True)
         self.assign_and_exe()
 
     def set_task(self):

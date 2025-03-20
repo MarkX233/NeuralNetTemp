@@ -1,5 +1,8 @@
 import librosa
 import numpy as np
+"""
+This file contains transforms in time domain
+"""
 
 class FixedTimeStepTrans():
     """
@@ -81,6 +84,7 @@ class DeltaCalculator():
         self.window = window
 
     def __call__(self, features):
+        features = features.astype(np.float64)
         deltas = [features]
         for _ in range(self.order):
             delta = np.zeros_like(deltas[-1])
