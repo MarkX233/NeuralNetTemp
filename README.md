@@ -46,6 +46,61 @@ In the `my_project` folder, `pro_temp.py` is the template file for the project, 
 
 `task_script.py` is the script file for the task. By defining the task in the `task_script.py`, you can pass parameters to `model.ipynb`. Therefore, if models are only different in some hyperparameters, you can use the same `model.ipynb` file and pass the hyperparameters from the `task_script.py`.
 
+The inherit chain or setting chain is: 
+
+```
+task_script.py (set tasks and pass parameters)
+-> model.ipynb (define model)
+-> pro_temp.py (define dataset and dataloader)
+-> gen_temp.py (define basic training loop)
+```
+
+In each file, there should be enough comments to help you understand the code.
+
+Here I will give some details to help you to understand the code structure:
+
+```python
+# gen_temp.py
+
+class GeneralTemplate():
+    def __init__(self,**kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    ...
+
+    def train_onetime(self,no_plot=False):
+            self.init_params()
+            self.onetime_flag=True
+            self.set_path()
+            self.set_dataset()
+            self.set_dataloader()
+            if self.match_name is None or self.remark is None:
+                self.set_name()
+            self.set_dir()
+            self.set_results_path()
+            self.set_vary_in_iter()
+            self.set_model()
+            self.init_net()
+            self.set_train()
+            self.set_store_onetime()
+            self.set_store_record()
+            if no_plot is False:
+                self.plot_final()
+                self.plot_record()
+```
+
+In `gen_temp.py`, the `GeneralTemplate` class is defined. This class indicates how the training process is performed. The `train_onetime` method is the most simple training process comparing to iteration training. It will call the `set_` methods gradually to set the settings, dataset, model and etc.. In this class, only the basic structure methods are defined。 In most time these methods don't need to be changed. The specific settings of practical project are defined in its subclass.
+
+If you understand the training process, you will know `set_dataset`, `set_dataloader`, `set_train` are methods to define the dataset, dataloader, training function. These methods usually can be shared within a project and are defined in `pro_temp.py`. `init_params` and `self.set_model` are methods to define the model, and they are defined in `model.ipynb`. It's also very easy to modify the methods, you only need to rewrite the corresponding method in its subclass and the parent-method will be replaced.
+
+As for the parameters, there are 2 places to be set. The first place is in the code cell of the Jupyter notebook file, with tag `parameters`. The parameters in this cell can be overwritten by `papermill` according to the `task_script.py` settings. The second place is in method `init_params` in `model.ipynb`. The parameters here are generally the fixed settings.
+
+If all the methods are defined, the final sub class is instanced in `model.ipynb`. By calling the `train_onetime` method, the training process will be performed.
+
+With these 3 different layer of files, you can easily manage the code and reuse the code that can be shared. And to modify the different parts of the code, you only need to rewrite the corresponding method in its subclass.
+
+
 ### 3. Run the project
 
 You can directly use:
@@ -142,5 +197,6 @@ Before you use git to manage your custom code, you need to creat a gitingore fil
 ```bash
 nnt sync --first
 ```
+
 It will create a `.gitignore` file in the custom folder and ignore the pyc and log files. You can also use `nnt sync` to sync your local files to the remote repository for a quick sync. You can also use the git command to manage your custom code. It's the same as the git command, but use `nnt` before `git`, so the custom code you saved will be operated.
 

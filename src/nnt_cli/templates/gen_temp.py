@@ -33,36 +33,14 @@ class GeneralTemplate():
     If you want to do iteration train, you need to implement `set_iter`. The store and plot functions are already implemented
     and will automatically deal with the data.
     """
-    def __init__(
-        self,
-        notebook_name,
-        para_mode,
-        debug_mode,
-        batch_size,
-        num_epochs,
-        lr,
-        beta,
-        bit_width,
-        num_hiddens,
-        match_name=None,
-        remark=None,
-    ):
+    def __init__(self,**kwargs):
         """
         Args, are the parameters that need to be set in the certain cell with `parameters` tag in the notebook,
         which means, these parameters can be set by script.
         """
 
-        self.para_mode = para_mode
-        self.debug_mode = debug_mode
-        self.batch_size = batch_size
-        self.notebook_name = notebook_name
-        self.num_epochs = num_epochs
-        self.learning_rate = lr
-        self.beta = beta
-        self.bit_width=bit_width
-        self.num_hiddens=num_hiddens
-        self.match_name=match_name
-        self.remark=remark
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
     def init_params(self):
         """
@@ -87,6 +65,12 @@ class GeneralTemplate():
 
 
     def set_iter(self):
+        """
+        Set the iteration parameters here.
+        The vary_list is the list of the values that need to be iterated.
+        The variable_name is the name of the variable that need to be iterated
+        The first one will be used in 'iter' mode, both will be used in 'diter' mode.
+        """
         self.vary_list=[1,2,4,8]
         self.variable_name="bit_width"
         # Must be consistent with the variable names in the class defined.

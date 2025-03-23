@@ -12,14 +12,6 @@ class _Project_Template(GeneralTemplate):
     """
     Project template for specific project.
     """
-    def __init__(self,**kwargs):
-        """
-        Args, are the parameters that need to be set in the certain cell with `parameters` tag in the notebook,
-        which means, these parameters can be set by script.
-        """
-
-        for key, value in kwargs.items():
-            setattr(self, key, value)
     
     def init_params(self):
         """

@@ -6,7 +6,7 @@ from json.decoder import JSONDecodeError
 import json
 import torch.nn as nn
 import snntorch as snn
-import brevitas as qnn
+import brevitas.nn as qnn
 
 from nnt_cli.utils.plot.acc_plot import plot_acc
 from nnt_cli.utils.data_trans import float_quant_tensor2int
