@@ -11,7 +11,13 @@ It is built on top of the popular [PyTorch](https://pytorch.org/) library, which
 
 ### 1. Installation
 
-As the package is not uploaded to PyPI, you need to download the wheel file from the release page and install it manually.
+To install, you can download the source code and install it manually.
+
+```bash
+pip install .
+```
+
+Or download the wheel file from the release page and install it manually.
 
 ```bash
 pip install nnt_cli-0.3.0-py3-none-any.whl

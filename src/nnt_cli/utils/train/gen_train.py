@@ -4,6 +4,7 @@ import torch
 
 from nnt_cli.utils.sl import save_checkpoint
 from nnt_cli.utils.data_trans import float_quant_tensor2int
+from nnt_cli.utils.layer.gen_layer import InputSaviorLayer
 
 
 def train_funct(
@@ -17,7 +18,8 @@ def train_funct(
     device="cpu",
     quant_tensor=False,
     checkpoint_path=None,
-    mid_results=None
+    mid_results=None,
+    checkpoint_sav_period=5
 ):
     
     """
@@ -27,7 +29,6 @@ def train_funct(
         quant_tensor (bool):
             Whether to transform network output from quant tensor of brevitas to int tensor, before calculating loss.
     """
-    checkpoint_sav_period= 5 # unit: epoch
 
     if mid_results is None:
         train_l_list=[]
@@ -129,7 +130,6 @@ def evaluate_accuracy(
     Evaluating accuracy for training function.
 
     """
-    from layer.gen_layer import InputSaviorLayer
     acc_sum, n = 0.0, 0
     if isinstance(net, torch.nn.Module):
         for _, layer in net.named_modules():

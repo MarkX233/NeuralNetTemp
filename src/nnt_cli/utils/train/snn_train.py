@@ -44,8 +44,7 @@ class forward_pass():
         self.net=net
 
         self.sav_layer_en=sav_layer_en
-        
-        
+
     def spkin(self):
         for step in range(self.num_steps):
             if self.sav_layer_en:
@@ -64,7 +63,7 @@ class forward_pass():
             self.mem_rec.append(mem_out)
 
         return torch.stack(self.spk_rec), torch.stack(self.mem_rec)
-    
+
     def evein(self):
         for step in range(self.data.size(0)):
             if self.sav_layer_en:
@@ -74,19 +73,39 @@ class forward_pass():
             self.mem_rec.append(mem_out)
 
         return torch.stack(self.spk_rec), torch.stack(self.mem_rec)
-    
+
     def enable_sav_layer(self,step):
         for _, layer in self.net.named_modules():
-                    if isinstance(layer, InputSaviorLayer):
-                        layer.time_count=step   # The setting here must correspond to du.InputSaviorLayer.
-                        layer.last_one=False
-                        if step == self.data.size(0)-1:
-                            layer.last_one=True
+            if isinstance(layer, InputSaviorLayer):
+                layer.time_count = (
+                    step  # The setting here must correspond to du.InputSaviorLayer.
+                )
+                layer.last_one = False
+                if step == self.data.size(0) - 1:
+                    layer.last_one = True
 
-def train_snn(net, train_loader, test_loader, loss, num_epochs, optimizer, num_steps,
-               forward=True, eve_in=False, SF_funct=False,  infer_loader=None, in2spk=False, 
-               device="cpu",sampler=None,debug_mode=False,checkpoint_path=None,mid_results=None,
-               scheduler=None):
+
+def train_snn(
+    net,
+    train_loader,
+    test_loader,
+    loss,
+    num_epochs,
+    optimizer,
+    num_steps,
+    forward=True,
+    eve_in=False,
+    SF_funct=False,
+    infer_loader=None,
+    in2spk=False,
+    device="cpu",
+    sampler=None,
+    debug_mode=False,
+    checkpoint_path=None,
+    mid_results=None,
+    scheduler=None,
+    checkpoint_sav_period=5,
+):
     """
     A general training function for Spiking Neural Networks (SNN).
 
@@ -115,8 +134,6 @@ def train_snn(net, train_loader, test_loader, loss, num_epochs, optimizer, num_s
         list: Training loss, training accuracy, test accuracy, and inference accuracy lists.
     """
 
-    checkpoint_sav_period= 5 # unit: epoch
-
     train_l_sum, train_acc_sum, n = 0.0, 0.0, 0
 
     if mid_results is None:
@@ -128,7 +145,7 @@ def train_snn(net, train_loader, test_loader, loss, num_epochs, optimizer, num_s
     else:
         if len(mid_results) != 5:
             raise ValueError("Wrong input length of mid_results!")
-        
+
         last_epoch_num=mid_results[0]
         train_l_list=mid_results[1]
         train_acc_list=mid_results[2]
@@ -139,15 +156,13 @@ def train_snn(net, train_loader, test_loader, loss, num_epochs, optimizer, num_s
         else:
             raise ValueError("The epoch loaded from checkpoint is not smaller than the num_epoch settings.")
 
-
-
     for epoch in epoch_range:
         if sampler is not None:
             sampler.set_epoch(epoch)
         for frames, label in tqdm(train_loader, desc=f"Training: Epoch {epoch+1}/{num_epochs}", unit="batch",leave=False): 
-        # For NMNIST, ToFrame and no `batch_first`:
-        # frames: feature tensor, shape [time_length, batch_size, 2*34*34]. label: label tensor, shape [batch_size].
-        # 1 batch size of dataset for one time
+            # For NMNIST, ToFrame and no `batch_first`:
+            # frames: feature tensor, shape [time_length, batch_size, 2*34*34]. label: label tensor, shape [batch_size].
+            # 1 batch size of dataset for one time
             frames=frames.to(device)
             label=label.to(device)
 
@@ -165,11 +180,11 @@ def train_snn(net, train_loader, test_loader, loss, num_epochs, optimizer, num_s
 
             spk_rec=torch.tensor([],device=device)
             mem_rec=torch.tensor([],device=device)
-            
+
             spk_rec,mem_rec=net_run(net,frames,num_steps,in2spk,forward,eve_in)
-            
+
             _, label_hat_id=spk_rec.sum(dim=0).max(1) # Output: Rate coding
-            
+
             # initialize the total loss value
             loss_val = torch.zeros((1), dtype=torch.float, device=device)
 
@@ -180,9 +195,9 @@ def train_snn(net, train_loader, test_loader, loss, num_epochs, optimizer, num_s
                     step_loss = loss(mem_rec[step], label)      # cross entrophy.
                     loss_val = loss_val + step_loss
                 # loss_val = loss(y_hat, label).sum().to(device)    # .sum(), input is a list or array
-            
+
             loss_val.backward()
-            
+
             if isinstance(optimizer,list):
                 for opt in optimizer:
                     opt.step()
@@ -229,8 +244,6 @@ def train_snn(net, train_loader, test_loader, loss, num_epochs, optimizer, num_s
 
         if debug_mode is True:
             print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_l_sum / n:.4f}, Train Acc: {train_acc_sum / n:.3f}, Test Acc: {test_acc:.3f}, Infer Acc: {infer_acc:.3f}")
-
-        
 
         if isinstance(device,str) and device.startswith("cuda") or \
             isinstance(device,torch.device) and device.type == "cuda":
@@ -283,9 +296,8 @@ def eval_acc(data_iter, net, num_steps, device="cpu",in2spk=False,forward=False,
         
 
     return acc_sum / n
-    
-    
-    
+
+
 def net_run(net,frames,num_steps,in2spk,forward,eve_in,sav_layer_en=False):
     if in2spk is True and eve_in is True:
         raise ValueError("Error! Wrong settings of in2spk and eve_in! These two can't stay True together!")
