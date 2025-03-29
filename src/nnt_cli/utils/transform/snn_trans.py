@@ -1,5 +1,8 @@
 import librosa
 import numpy as np
+import torch
+import snntorch as snn
+
 """
 This file contains transforms in time domain
 """
@@ -128,3 +131,139 @@ class RandomTimeWarp():
         
         return frames[warp_curve]
     
+class ProbabilisticBinarize():
+    def __init__(self, min_prob=0.1, max_prob=0.9, scale_type="linear", gamma=1.0):
+        """
+        Probabilistic binarization of input data based on a probability map.
+        The probability map is generated based on the input data's min and max values,
+        and the specified scaling type.
+
+        linearly mapped data x:
+        x = (data - data_min) / data_range
+
+        linear	    p = min_p + (max_p - min_p) * x	
+        exp	        p = min_p + (max_p - min_p) * (e^(γx)-1)/(e^γ-1)
+        log	        p = min_p + (max_p - min_p) * log(1+x(e-1))
+        sqrt	    p = min_p + (max_p - min_p) * sqrt(x)	
+        quadratic	p = min_p + (max_p - min_p) * x²	
+
+        Args:
+            min_prob (float): Minimum trigger probability (0.0~1.0)
+            max_prob (float): Maximum trigger probability (0.0~1.0)
+            scale_type (str): Probability map curve type ["linear", "exp", "log", "sqrt", "quadratic"]
+            gamma (float): nonlinear coefficient (valid only for exp type)
+        """
+        self.min_prob = min_prob
+        self.max_prob = max_prob
+        self.scale_type = scale_type
+        self.gamma = gamma
+        
+        assert scale_type in ["linear", "exp", "log", "sqrt", "quadratic"]
+        assert 0 <= min_prob <= max_prob <= 1.0
+
+    def __call__(self, data_matrix):
+        """
+        Args:
+            data_matrix (np.ndarray or torch.Tensor): Input data matrix of shape [T, C]
+        """
+        if isinstance(data_matrix, torch.Tensor):
+            data_np = data_matrix.numpy()
+        else:
+            data_np = data_matrix.copy()
+            
+        original_shape = data_np.shape
+        if data_np.ndim > 2:
+            data_np = data_np.reshape(original_shape[0], -1)
+        
+        data_min = data_np.min()
+        data_max = data_np.max()
+        data_range = data_max - data_min
+        if data_range == 0:
+            return torch.zeros_like(data_matrix) if isinstance(data_matrix, torch.Tensor) \
+                   else np.zeros_like(data_matrix)
+
+        # Data linearly mapped to [0,1] interval    
+        normalized = (data_np - data_min) / data_range
+        
+        if self.scale_type == "linear":
+            scaled = normalized
+        elif self.scale_type == "exp":
+            scaled = np.exp(self.gamma * normalized) - 1
+            scaled /= (np.exp(self.gamma) - 1)
+        elif self.scale_type == "log":
+            scaled = np.log1p(normalized * (np.exp(1) - 1))
+            scaled /= np.log(np.exp(1))
+        elif self.scale_type == "sqrt":
+            scaled = np.sqrt(normalized)
+        elif self.scale_type == "quadratic":
+            scaled = normalized**2
+            
+        prob_map = self.min_prob + (self.max_prob - self.min_prob) * scaled
+        
+        binary_np = np.random.binomial(n=1, p=prob_map).astype(np.int8)
+        
+        # Restore original shapes
+        binary_np = binary_np.reshape(original_shape)
+        if isinstance(data_matrix, torch.Tensor):
+            return torch.from_numpy(binary_np)
+        else:
+            return binary_np
+
+class LIFTransform:
+    def __init__(
+        self,
+        threshold=1.0,      
+        beta=0.9,
+        reset_mechanism="zero",
+        normalize_input=True,    # Whether to automatically normalize input to [0,1]
+    ):
+        self.normalize_input = normalize_input
+        # self.mem = None
+        self.beta = beta
+        self.threshold = threshold
+        self.reset_mechanism = reset_mechanism
+        self.lif = None
+
+    def _init_lif(self):
+        self.lif = snn.Leaky(
+            beta=self.beta,
+            threshold=self.threshold,
+            reset_mechanism=self.reset_mechanism,
+            init_hidden=True
+        )
+
+    def __call__(self, frames):
+
+        if self.lif is None:
+            self._init_lif()
+
+        self.lif.reset_mem()
+
+        if not isinstance(frames, torch.Tensor):
+            frames_tensor = torch.as_tensor(frames, dtype=torch.float32)
+        else:
+            frames_tensor = frames.clone().detach()
+        
+        frames_shape = frames_tensor.shape
+
+        if frames_tensor.dim() == 1:
+            frames_tensor = frames_tensor.unsqueeze(-1)  # [T] → [T, 1]
+            print("Warning: Input tensor has only 1 dimension. "
+            "The time dimension is assumed to be the first dimension."
+            "Which means the input tensor does not have a channel dimension. "
+            "Please check the input tensor shape.")
+
+        if self.normalize_input:
+            frames_tensor = (frames_tensor - frames_tensor.min()) / (
+                frames_tensor.max() - frames_tensor.min() + 1e-8
+            )
+
+        spike_frame = []
+
+        for t in range(frames_tensor.size(0)):
+            spk = self.lif(frames_tensor[t])
+            spike_frame.append(spk)
+
+        spike_frame = torch.stack(spike_frame).view(frames_shape)
+
+        return spike_frame
