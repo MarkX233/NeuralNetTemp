@@ -489,7 +489,7 @@ class GeneralTemplate():
 
         print(f"Time length: {time_len_dict}")
     
-    def get_visual_frame_distribution(self, dataset_num=0, quantile=0.99):
+    def get_visual_frame_distribution(self, dataset_num=0, quantile=0.99, time_distri=True):
         """
         Plot frame value distribution from dataset
         """
@@ -505,7 +505,8 @@ class GeneralTemplate():
         if self.train_preset is not None:
             frame0, _ = self.train_preset[dataset_num]
 
-            nu.plot.anal_plot.plot_time_step_distribution(self.train_preset)
+            if time_distri:
+                nu.plot.anal_plot.plot_time_step_distribution(self.train_preset)
 
             nu.plot.anal_plot.visualize_event_distribution(frame0,title="Pre-Frames Event Distribution Analysis")
             nu.plot.anal_plot.visualize_value_distribution(frame0,title="Pre-Frames Value Distribution Analysis")

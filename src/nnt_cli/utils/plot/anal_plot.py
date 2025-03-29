@@ -303,172 +303,88 @@ def visualize_value_distribution(event_matrix, title="Value Distribution Analysi
 
     plt.tight_layout()
     plt.show()
-# def visualize_value_distribution(event_matrix, title="Value Distribution Analysis"):
+
+# def visualize_event_distribution(frames, title="Event Distribution Analysis"):
 #     """
-#     Visualize event value distribution across multiple dimensions for normalization
-#     Suitable for the data doesn't have extreme value.
+#     Visualize event data distribution with multiple complementary plots
+
+#     The input is frame after tonic.transform.ToFrame.
+
+#     This function should work only ToFrame transform is used. If you use other transforms, 
+#     the results could not be accuracy.
     
-#     Parameters:
-#         event_matrix (np.ndarray / Tensor ): Input data in [Time_steps, ... ] format
-#         title (str): Visualization title
+#     Args:
+#         frames (np.ndarray or Tensor): Input data of shape [Time_steps, Channels]
+#         title (str): Title for the visualization
 #     """
 
-#     if isinstance(event_matrix, torch.Tensor):
-#         event_matrix = event_matrix.numpy()
+#     if isinstance(frames, torch.Tensor):
+#         frames = frames.numpy()
 
-#     T, C = event_matrix.shape[0], event_matrix.shape[1]
+#     T, C = frames.shape[0], frames.shape[1]
 
-#     if event_matrix.ndim > 2:
-#         event_matrix=event_matrix.reshape(T, C , -1)
-
-
-#     flat_values = event_matrix.flatten()
-#     time_coords = np.repeat(np.arange(T), C)
-#     channel_coords = np.tile(np.arange(C), T)
-
-#     # Create figure layout
-#     fig = plt.figure(figsize=(18, 12))
-#     gs = GridSpec(3, 3, figure=fig)
+#     if frames.ndim > 2:
+#         frames=frames.reshape(T, C , -1)
+    
+    
+#     # Create figure with subplots
+#     fig = plt.figure(figsize=(18, 10))
 #     fig.suptitle(title, fontsize=14)
+    
+#     # Create grid layout
+#     gs = fig.add_gridspec(3, 3)
+    
+#     # Main 2D Distribution Plot
+#     ax1 = fig.add_subplot(gs[:2, :2])
+#     # Hexbin plot for density visualization
+#     hb = ax1.hexbin(x=np.tile(np.arange(T), C),
+#                 y=np.repeat(np.arange(C), T),
+#                 C=frames.flatten(),
+#                 gridsize=50,
+#                 cmap='viridis',
+#                 bins='log',
+#                 mincnt=1)
+#     ax1.set_xlabel('Time Steps', fontsize=10)
+#     ax1.set_ylabel('Channels', fontsize=10)
+#     cb = fig.colorbar(hb, ax=ax1)
+#     cb.set_label('Log-scaled Event Count', rotation=270, labelpad=15)
 
-#     # 1. Value Histogram with Percentile Markers
-#     ax_hist = fig.add_subplot(gs[0, 0])
-#     counts, bins, _ = ax_hist.hist(flat_values, bins=50, log=True, 
-#                                 color='skyblue', edgecolor='navy')
-#     # Add percentile markers
-#     percentiles = np.percentile(flat_values, [25, 50, 75, 95, 99])
-#     for p in percentiles:
-#         ax_hist.axvline(p, color='red', linestyle='--', alpha=0.7)
-#     ax_hist.set_title('Value Frequency Distribution')
-#     ax_hist.set_xlabel('Event Values')
-#     ax_hist.set_ylabel('Log Count')
-
-#     # 2. Temporal Distribution Heatmap
-#     ax_time = fig.add_subplot(gs[0, 1:])
-#     time_heatmap = ax_time.scatter(x=time_coords,
-#                                 y=flat_values,
-#                                 c=channel_coords,
-#                                 cmap='viridis',
-#                                 alpha=0.3,
-#                                 s=5)
-#     ax_time.set_title('Temporal Value Distribution')
-#     ax_time.set_xlabel('Time Steps')
-#     ax_time.set_ylabel('Values')
-#     fig.colorbar(time_heatmap, ax=ax_time, label='Channel ID')
-
-#     # 3. Channel Distribution Violin Plot
-#     ax_channel = fig.add_subplot(gs[1:, :2])
-#     channel_samples = [event_matrix[:,c] for c in range(C)]
-#     vparts = ax_channel.violinplot(channel_samples, 
-#                                 showmeans=True,
-#                                 showextrema=False)
-#     # Style violins
-#     for pc in vparts['bodies']:
-#         pc.set_facecolor('orchid')
-#         pc.set_alpha(0.3)
-#     ax_channel.set_title('Channel-wise Value Distribution')
-#     ax_channel.set_xlabel('Channel ID')
-#     ax_channel.set_ylabel('Values')
-#     ax_channel.set_xticks(np.arange(0, C+1, C//10))
-
-#     # 4. Enhanced Joint Distribution (Hexbin + Marginal)
-#     ax_joint = fig.add_subplot(gs[1:, 2])
-#     hb = ax_joint.hexbin(x=flat_values,
-#                     y=channel_coords,
-#                     gridsize=50,
-#                     cmap='plasma',
-#                     bins='log')
-#     ax_joint.set_title('Value-Channel Joint Distribution')
-#     ax_joint.set_xlabel('Values')
-#     ax_joint.set_ylabel('Channel ID')
-#     fig.colorbar(hb, ax=ax_joint, label='Log Count')
+#     # Temporal Distribution (Marginal)
+#     ax2 = fig.add_subplot(gs[2, :2])
+#     time_sum = frames.sum(axis=1)
+#     ax2.plot(time_sum, color='tab:blue')
+#     ax2.fill_between(np.arange(T), time_sum, alpha=0.3)
+#     ax2.set_xlabel('Time Steps')
+#     ax2.set_ylabel('Total Events')
+#     ax2.set_title('Temporal Distribution', fontsize=10)
+    
+#     # Channel Distribution (Marginal)
+#     ax3 = fig.add_subplot(gs[:2, 2])
+#     chan_sum = frames.sum(axis=0)
+#     ax3.plot(chan_sum, np.arange(C), color='tab:orange')
+#     ax3.fill_betweenx(np.arange(C), chan_sum, alpha=0.3)
+#     ax3.set_xlabel('Total Events')
+#     ax3.set_ylabel('Channels')
+#     ax3.set_title('Channel Distribution', fontsize=10)
+    
+#     # Statistics Table
+#     ax4 = fig.add_subplot(gs[2, 2])
+#     stats = {
+#         'Total Events': frames.sum(),
+#         'Mean/Time Step': f"{frames.mean(axis=1).mean():.1f} ± {frames.mean(axis=1).std():.1f}",
+#         'Density (%)': f"{100 * np.mean(frames > 0):.2f}%",
+#         'Max Channel': f"Ch{np.argmax(chan_sum)} ({np.max(chan_sum)})",
+#         'Peak Time': f"T{np.argmax(time_sum)} ({np.max(time_sum)})"
+#     }
+#     ax4.table(cellText=[[v] for v in stats.values()],
+#             rowLabels=list(stats.keys()),
+#             loc='center',
+#             cellLoc='left',
+#             bbox=[0.1, 0.2, 0.8, 0.6])
+#     ax4.axis('off')
 
 #     plt.tight_layout()
 #     plt.show()
-
-
-
-def visualize_event_distribution(frames, title="Event Distribution Analysis"):
-    """
-    Visualize event data distribution with multiple complementary plots
-
-    The input is frame after tonic.transform.ToFrame.
-
-    This function should work only ToFrame transform is used. If you use other transforms, 
-    the results could not be accuracy.
-    
-    Args:
-        frames (np.ndarray or Tensor): Input data of shape [Time_steps, Channels]
-        title (str): Title for the visualization
-    """
-
-    if isinstance(frames, torch.Tensor):
-        frames = frames.numpy()
-
-    T, C = frames.shape[0], frames.shape[1]
-
-    if frames.ndim > 2:
-        frames=frames.reshape(T, C , -1)
-    
-    
-    # Create figure with subplots
-    fig = plt.figure(figsize=(18, 10))
-    fig.suptitle(title, fontsize=14)
-    
-    # Create grid layout
-    gs = fig.add_gridspec(3, 3)
-    
-    # Main 2D Distribution Plot
-    ax1 = fig.add_subplot(gs[:2, :2])
-    # Hexbin plot for density visualization
-    hb = ax1.hexbin(x=np.tile(np.arange(T), C),
-                y=np.repeat(np.arange(C), T),
-                C=frames.flatten(),
-                gridsize=50,
-                cmap='viridis',
-                bins='log',
-                mincnt=1)
-    ax1.set_xlabel('Time Steps', fontsize=10)
-    ax1.set_ylabel('Channels', fontsize=10)
-    cb = fig.colorbar(hb, ax=ax1)
-    cb.set_label('Log-scaled Event Count', rotation=270, labelpad=15)
-
-    # Temporal Distribution (Marginal)
-    ax2 = fig.add_subplot(gs[2, :2])
-    time_sum = frames.sum(axis=1)
-    ax2.plot(time_sum, color='tab:blue')
-    ax2.fill_between(np.arange(T), time_sum, alpha=0.3)
-    ax2.set_xlabel('Time Steps')
-    ax2.set_ylabel('Total Events')
-    ax2.set_title('Temporal Distribution', fontsize=10)
-    
-    # Channel Distribution (Marginal)
-    ax3 = fig.add_subplot(gs[:2, 2])
-    chan_sum = frames.sum(axis=0)
-    ax3.plot(chan_sum, np.arange(C), color='tab:orange')
-    ax3.fill_betweenx(np.arange(C), chan_sum, alpha=0.3)
-    ax3.set_xlabel('Total Events')
-    ax3.set_ylabel('Channels')
-    ax3.set_title('Channel Distribution', fontsize=10)
-    
-    # Statistics Table
-    ax4 = fig.add_subplot(gs[2, 2])
-    stats = {
-        'Total Events': frames.sum(),
-        'Mean/Time Step': f"{frames.mean(axis=1).mean():.1f} ± {frames.mean(axis=1).std():.1f}",
-        'Density (%)': f"{100 * np.mean(frames > 0):.2f}%",
-        'Max Channel': f"Ch{np.argmax(chan_sum)} ({np.max(chan_sum)})",
-        'Peak Time': f"T{np.argmax(time_sum)} ({np.max(time_sum)})"
-    }
-    ax4.table(cellText=[[v] for v in stats.values()],
-            rowLabels=list(stats.keys()),
-            loc='center',
-            cellLoc='left',
-            bbox=[0.1, 0.2, 0.8, 0.6])
-    ax4.axis('off')
-
-    plt.tight_layout()
-    plt.show()
 
 
 def plot_time_step_distribution(dataset, title="Time Steps Distribution"):
@@ -516,5 +432,96 @@ def plot_time_step_distribution(dataset, title="Time Steps Distribution"):
     plt.ylabel('Frequency', fontsize=12)
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+def visualize_event_distribution(frames, title="Event Distribution Analysis"):
+    """
+    Visualize event data distribution with multiple complementary plots
+
+    The input is frame after tonic.transform.ToFrame.
+
+    This function should work only ToFrame transform is used. If you use other transforms, 
+    the results could not be accuracy.
+    
+    Args:
+        frames (np.ndarray or Tensor): Input data of shape [Time_steps, Channels]
+        title (str): Title for the visualization
+    """
+    import matplotlib.colors as mcolors
+
+    if isinstance(frames, torch.Tensor):
+        frames = frames.numpy()
+
+    T, C = frames.shape[0], frames.shape[1]
+    if frames.ndim > 2:
+        frames = frames.reshape(T, C, -1)
+
+    plot_data = frames.copy().astype(np.float32)
+    plot_data_flat = plot_data.reshape(-1)
+    np.clip(plot_data_flat, a_min=1e-6, a_max=None, out=plot_data_flat)  # 将所有非正值设为1e-6
+
+    fig = plt.figure(figsize=(18, 10))
+    fig.suptitle(title, fontsize=14)
+    gs = fig.add_gridspec(3, 3)
+
+    # Main image - 2D event distribution
+    ax1 = fig.add_subplot(gs[:2, :2])
+    hb = ax1.hexbin(
+        x=np.tile(np.arange(T), C),
+        y=np.repeat(np.arange(C), T),
+        C=plot_data_flat,
+        gridsize=50,
+        cmap='viridis',
+        norm=mcolors.LogNorm(
+            vmin=max(1e-5, plot_data_flat.min()),
+            vmax=plot_data_flat.max(),
+        ),   # Dynamically set the minimum value
+        mincnt=1 
+    )
+    ax1.set_xlabel('Time Steps', fontsize=10)
+    ax1.set_ylabel('Channels', fontsize=10)
+    cb = fig.colorbar(hb, ax=ax1, pad=0.02)
+    cb.set_label('Log-scaled Event Count', rotation=270, labelpad=20)
+
+    # Time dimension distribution (bottom)
+    ax2 = fig.add_subplot(gs[2, :2])
+    time_sum = frames.reshape(T, -1).sum(axis=1)
+    ax2.plot(time_sum, color='tab:blue')
+    ax2.fill_between(np.arange(T), time_sum, alpha=0.3)
+    ax2.set_xlabel('Time Steps')
+    ax2.set_ylabel('Total Events')
+    ax2.set_title('Temporal Distribution', fontsize=10)
+    ax2.grid(True, alpha=0.3)
+
+    # Channel dimension distribution (right)
+    ax3 = fig.add_subplot(gs[:2, 2])
+    chan_sum = frames.reshape(-1, C).sum(axis=0)
+    ax3.plot(chan_sum, np.arange(C), color='tab:orange')
+    ax3.fill_betweenx(np.arange(C), chan_sum, alpha=0.3)
+    ax3.set_xlabel('Total Events')
+    ax3.set_ylabel('Channels')
+    ax3.set_title('Channel Distribution', fontsize=10)
+    ax3.grid(True, alpha=0.3)
+
+    # Statistics table (bottom right)
+    ax4 = fig.add_subplot(gs[2, 2])
+    stats = {
+        'Total Events': f"{frames.sum():,}",
+        'Mean/Time Step': f"{frames.mean(axis=1).mean():.1f} ± {frames.mean(axis=1).std():.1f}",
+        'Density (%)': f"{100 * np.mean(frames > 0):.2f}%",
+        'Max Channel': f"Ch{np.argmax(chan_sum)} ({chan_sum.max():,})",
+        'Peak Time': f"T{np.argmax(time_sum)} ({time_sum.max():,})"
+    }
+    ax4.table(
+        cellText=[[v] for v in stats.values()],
+        rowLabels=list(stats.keys()),
+        loc='center',
+        cellLoc='left',
+        bbox=[0.1, 0.2, 0.8, 0.6],
+        colWidths=[0.6]
+    )
+    ax4.axis('off')
+
     plt.tight_layout()
     plt.show()

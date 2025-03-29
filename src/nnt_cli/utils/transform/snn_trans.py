@@ -132,7 +132,7 @@ class RandomTimeWarp():
         return frames[warp_curve]
     
 class ProbabilisticBinarize():
-    def __init__(self, min_prob=0.1, max_prob=0.9, scale_type="linear", gamma=1.0):
+    def __init__(self, min_prob=0.1, max_prob=0.9, scale_type="linear", gamma=1.0, exclude_min=True):
         """
         Probabilistic binarization of input data based on a probability map.
         The probability map is generated based on the input data's min and max values,
@@ -141,10 +141,10 @@ class ProbabilisticBinarize():
         linearly mapped data x:
         x = (data - data_min) / data_range
 
-        linear	    p = min_p + (max_p - min_p) * x	
-        exp	        p = min_p + (max_p - min_p) * (e^(γx)-1)/(e^γ-1)
-        log	        p = min_p + (max_p - min_p) * log(1+x(e-1))
-        sqrt	    p = min_p + (max_p - min_p) * sqrt(x)	
+        linear	    p = min_p + (max_p - min_p) * x	\\
+        exp	        p = min_p + (max_p - min_p) * (e^(γx)-1)/(e^γ-1) \\
+        log	        p = min_p + (max_p - min_p) * log(1+x(e-1)) \\
+        sqrt	    p = min_p + (max_p - min_p) * sqrt(x)	\\
         quadratic	p = min_p + (max_p - min_p) * x²	
 
         Args:
@@ -152,11 +152,13 @@ class ProbabilisticBinarize():
             max_prob (float): Maximum trigger probability (0.0~1.0)
             scale_type (str): Probability map curve type ["linear", "exp", "log", "sqrt", "quadratic"]
             gamma (float): nonlinear coefficient (valid only for exp type)
+            exclude_min (bool): Whether to exclude the minimum value from the probability map
         """
         self.min_prob = min_prob
         self.max_prob = max_prob
         self.scale_type = scale_type
         self.gamma = gamma
+        self.exclude_min = exclude_min
         
         assert scale_type in ["linear", "exp", "log", "sqrt", "quadratic"]
         assert 0 <= min_prob <= max_prob <= 1.0
@@ -197,8 +199,14 @@ class ProbabilisticBinarize():
             scaled = np.sqrt(normalized)
         elif self.scale_type == "quadratic":
             scaled = normalized**2
-            
-        prob_map = self.min_prob + (self.max_prob - self.min_prob) * scaled
+
+        # Generate boolean mask to exclude minimum value
+        if self.exclude_min:
+            non_min_mask = (scaled > 0).astype(np.float32)
+        else:
+            non_min_mask = np.ones_like(scaled, dtype=np.float32)
+
+        prob_map = self.min_prob*non_min_mask + (self.max_prob - self.min_prob) * scaled
         
         binary_np = np.random.binomial(n=1, p=prob_map).astype(np.int8)
         
