@@ -142,7 +142,7 @@ class DynamicAssignTaskOnGPU():
         last_gpu=None
         task_count=self.start_num-1
         # Add task number to avoid overwritten the file with same name,
-        # if you want train the same code but with different args.
+        # while training the same code but with different args.
 
         while tasks:
             gpu_status = self.get_gpu_status()

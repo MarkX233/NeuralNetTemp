@@ -163,6 +163,11 @@ class ProbabilisticBinarize():
         assert scale_type in ["linear", "exp", "log", "sqrt", "quadratic"]
         assert 0 <= min_prob <= max_prob <= 1.0
 
+        if scale_type == "log":
+            assert gamma > 1.0, "gamma must >1 for log scaling"
+        elif scale_type == "root":
+            assert gamma > 1.0, "gamma must >1 for root scaling"
+
     def __call__(self, data_matrix):
         """
         Args:
@@ -191,10 +196,10 @@ class ProbabilisticBinarize():
             scaled = normalized
         elif self.scale_type == "exp":
             scaled = np.exp(self.gamma * normalized) - 1
-            scaled /= (np.exp(self.gamma) - 1)
+            scaled = scaled / (np.exp(self.gamma) - 1)
         elif self.scale_type == "log":
             scaled = np.log1p(normalized * (self.gamma - 1))
-            scaled /= np.log(self.gamma)
+            scaled = scaled / np.log(self.gamma)
         elif self.scale_type == "root":
             scaled = normalized ** (1.0 / self.gamma)
         elif self.scale_type == "power":
@@ -208,6 +213,7 @@ class ProbabilisticBinarize():
 
         prob_map = self.min_prob*non_min_mask + (self.max_prob - self.min_prob) * scaled
         
+        prob_map = np.clip(prob_map, 0.0, 1.0) # In case of numerical instability
         binary_np = np.random.binomial(n=1, p=prob_map).astype(np.int8)
         
         # Restore original shapes
