@@ -143,15 +143,15 @@ class ProbabilisticBinarize():
 
         linear	    p = min_p + (max_p - min_p) * x	\\
         exp	        p = min_p + (max_p - min_p) * (e^(γx)-1)/(e^γ-1) \\
-        log	        p = min_p + (max_p - min_p) * log(1+x(e-1)) \\
-        sqrt	    p = min_p + (max_p - min_p) * sqrt(x)	\\
-        quadratic	p = min_p + (max_p - min_p) * x²	
+        log	        p = min_p + (max_p - min_p) * logγ(1+x(γ-1)) \\
+        root	    p = min_p + (max_p - min_p) * x^(1/γ)	\\
+        power	    p = min_p + (max_p - min_p) * x^γ	
 
         Args:
             min_prob (float): Minimum trigger probability (0.0~1.0)
             max_prob (float): Maximum trigger probability (0.0~1.0)
             scale_type (str): Probability map curve type ["linear", "exp", "log", "sqrt", "quadratic"]
-            gamma (float): nonlinear coefficient (valid only for exp type)
+            gamma (float): Nonlinear coefficient for the probability map curve
             exclude_min (bool): Whether to exclude the minimum value from the probability map
         """
         self.min_prob = min_prob
@@ -193,12 +193,12 @@ class ProbabilisticBinarize():
             scaled = np.exp(self.gamma * normalized) - 1
             scaled /= (np.exp(self.gamma) - 1)
         elif self.scale_type == "log":
-            scaled = np.log1p(normalized * (np.exp(1) - 1))
-            scaled /= np.log(np.exp(1))
-        elif self.scale_type == "sqrt":
-            scaled = np.sqrt(normalized)
-        elif self.scale_type == "quadratic":
-            scaled = normalized**2
+            scaled = np.log1p(normalized * (self.gamma - 1))
+            scaled /= np.log(self.gamma)
+        elif self.scale_type == "root":
+            scaled = normalized ** (1.0 / self.gamma)
+        elif self.scale_type == "power":
+            scaled = normalized ** self.gamma
 
         # Generate boolean mask to exclude minimum value
         if self.exclude_min:

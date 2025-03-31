@@ -100,3 +100,20 @@ class QuantlieClip():
         threshold = np.quantile(frames, self.quantlie)
         clipped_frames = np.clip(frames, a_min=None, a_max=threshold)
         return clipped_frames
+    
+class ZeroNegTransform():
+    """
+    In order to let brevitas 1-bit quantization work, the value 0 must be transformed to a negative value.
+    This is because the quantization function in brevitas will quantize the value 0 to 1.
+    """
+    def __init__(self, negative_value=-1, onebit_en=False):
+        self.negative_value = negative_value
+        self.onebit_en = onebit_en
+        
+    def __call__(self, frames):
+        if self.onebit_en:
+            frames_copy = frames.copy() if isinstance(frames, np.ndarray) else frames.clone()
+            neg_frames = (frames_copy <= 0) * self.negative_value + (frames_copy > 0) * frames_copy
+            return neg_frames
+        else:
+            return frames

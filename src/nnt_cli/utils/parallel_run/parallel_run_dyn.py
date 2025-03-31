@@ -176,10 +176,10 @@ class DynamicAssignTaskOnGPU():
                         event.wait()
                         threads.append(thread)
                         if last_gpu is None:
-                            time.sleep(120)  # Initial time for papermill to start kernel at first start.
+                            time.sleep(90)  # Initial time for papermill to start kernel at first start.
                         last_gpu=gpu_id
                         start_time = time.time()
-                        time.sleep(30) # Wait for the assigned task to start, which prevents the order is messed up. 
+                        time.sleep(45) # Wait for the assigned task to start, which prevents the order is messed up. 
                         continue
                 else:
                     timestamp = datetime.now().strftime("%H:%M:%S")
