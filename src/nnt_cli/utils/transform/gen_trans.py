@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 class FlattenTransform():
     def __init__(self):
@@ -117,3 +118,45 @@ class ZeroNegTransform():
             return neg_frames
         else:
             return frames
+
+class BinnedTransform:
+    def __init__(self, n_bins, time_first=True):
+        """
+        Transform for Binned Time Series Data.
+        binned_len = C // self.n_bins
+        
+        This transform comes form the paper:
+        I. Hammouamri, I. Khalfaoui-Hassani, and T. Masquelier, "Learning Delays in Spiking Neural Networks using Dilated Convolutions with Learnable Spacings," in Proc. Twelfth Int. Conf. Learn. Representations (ICLR), 2024. [Online]. Available: https://openreview.net/forum?id=4r2ybzJnmN
+
+        Args:
+        n_bins (int): Number of bins to divide the input data into.
+        time_first (bool): If True, the first dimension is time. If False, the first dimension is channel.
+        """
+        self.n_bins = n_bins
+        self.time_first = time_first
+
+    def __call__(self, data):
+
+        if isinstance(data, np.ndarray):
+            return self._process_numpy(data)
+        elif isinstance(data, torch.Tensor):
+            # Convert to numpy for processing
+            data = data.numpy()
+            return torch.tensor(self._process_numpy(data))
+        else:
+            raise TypeError("Input must be the type of numpy.ndarray or torch.Tensor")
+
+    def _process_numpy(self, x: np.ndarray) -> np.ndarray:
+        if self.time_first:
+            T, C = x.shape
+        else:
+            C, T = x.shape
+        binned_len = C // self.n_bins
+        binned_frames = np.zeros((x.shape[0], binned_len))
+        for i in range(binned_len):
+            if self.time_first:
+                binned_frames[:,i] = x[:, self.n_bins*i : self.n_bins*(i+1)].sum(axis=1)
+            else:
+                binned_frames[:,i] = x[i*self.n_bins : (i+1)*self.n_bins, :].sum(axis=0)
+
+        return binned_frames

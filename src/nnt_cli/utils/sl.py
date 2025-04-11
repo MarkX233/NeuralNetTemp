@@ -272,7 +272,6 @@ def load_final_csv_and_plot(fpath,xname,yname=None):
                 )
     except:
         raise RuntimeError("Can't plot the final results!")
-        
 
 
 def load_sin_res(fpath):
@@ -342,7 +341,7 @@ def load_content(fpath,dic_name):
 
     return df[dic_name]
 
-def get_next_demo_index(directory, match_word, file_extension=".csv"):
+def get_next_demo_index(directory, match_word, file_extension=".csv", strict=True):
     """
     Find the next available index for files named '`match_word`*.<`file_extension`>' in the specified directory.
 
@@ -351,6 +350,8 @@ def get_next_demo_index(directory, match_word, file_extension=".csv"):
         match_word (str): The word to match in the filenames or sub directory names.
         file_extension (str): The file extension to look for. Defaults to ".csv".
             If it is "dir", match pattern is for directories.
+        strict (bool): If True, only match files with the exact name. Defaults to True. \
+                        If False, match files with the name containing `match_word` and index is f'_{number}' at the last.
 
     Returns:
         int: The next available index for a new file.
@@ -362,10 +363,12 @@ def get_next_demo_index(directory, match_word, file_extension=".csv"):
     # List all files in the directory
     items = os.listdir(directory)
 
+    index_pattern= r"(\d+)" if strict else r".*_(\d+)$"
+
     if file_extension =="dir":
-        demo_pattern = re.compile(re.escape(match_word) + r"(\d+)")
+        demo_pattern = re.compile(re.escape(match_word) + index_pattern)
     else:    
-        demo_pattern = re.compile(re.escape(match_word) + r"(\d+)" + re.escape(file_extension))
+        demo_pattern = re.compile(re.escape(match_word) + index_pattern + re.escape(file_extension))
     indices = []
 
     for item in items:
@@ -565,7 +568,20 @@ def load_net_state(net, path, optimizer=False, loss=False):
     print("All parameters are loaded.")
 
 
-def save_checkpoint(model, optimizer, epoch, loss, train_l_list, train_acc_list, test_acc_list, infer_acc_list, path="./checkpoint", scheduler=None):
+def save_checkpoint(
+    model,
+    optimizer,
+    epoch,
+    loss,
+    train_l_list,
+    train_acc_list,
+    test_acc_list,
+    infer_acc_list,
+    path="./checkpoint",
+    scheduler=None,
+    cp_retain=2, #  number of checkpoints to retain
+
+):
     checkpoint = {
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
@@ -580,8 +596,7 @@ def save_checkpoint(model, optimizer, epoch, loss, train_l_list, train_acc_list,
     if scheduler is not None:
         checkpoint["scheduler_state"]=scheduler.state_dict()
 
-    N = 2
-    # Only retain the recent N CHECKPOINT
+    
 
     os.makedirs(path, exist_ok=True)
 
@@ -593,9 +608,10 @@ def save_checkpoint(model, optimizer, epoch, loss, train_l_list, train_acc_list,
         key=lambda x: int(x.split("_")[-1].split(".")[0])
     )
 
-    if len(checkpoint_files) > N:
+    if len(checkpoint_files) > cp_retain:
         os.remove(os.path.join(path, checkpoint_files[0]))
         # Delete the oldest file
+
 
 def load_checkpoint(model, optimizer, fpath="checkpoint.pth", scheduler=None):
     checkpoint = torch.load(fpath)

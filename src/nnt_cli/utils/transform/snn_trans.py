@@ -87,6 +87,9 @@ class DeltaCalculator():
         self.window = window
 
     def __call__(self, features):
+        if isinstance(features, torch.Tensor):
+            features = features.detach().numpy()
+        
         features = features.astype(np.float64)
         deltas = [features]
         for _ in range(self.order):
@@ -132,7 +135,7 @@ class RandomTimeWarp():
         return frames[warp_curve]
     
 class ProbabilisticBinarize():
-    def __init__(self, min_prob=0.1, max_prob=0.9, scale_type="linear", gamma=1.0, exclude_min=True):
+    def __init__(self, min_prob=0.1, max_prob=0.9, scale_type="linear", gamma=1.0, exclude_min=True, abs=False):
         """
         Probabilistic binarization of input data based on a probability map.
         The probability map is generated based on the input data's min and max values,
@@ -153,12 +156,14 @@ class ProbabilisticBinarize():
             scale_type (str): Probability map curve type ["linear", "exp", "log", "sqrt", "quadratic"]
             gamma (float): Nonlinear coefficient for the probability map curve
             exclude_min (bool): Whether to exclude the minimum value from the probability map
+            abs (bool): Whether to take the absolute value of the input data before processing
         """
         self.min_prob = min_prob
         self.max_prob = max_prob
         self.scale_type = scale_type
         self.gamma = gamma
         self.exclude_min = exclude_min
+        self.abs = abs
         
         assert scale_type in ["linear", "exp", "log", "sqrt", "quadratic"]
         assert 0 <= min_prob <= max_prob <= 1.0
@@ -175,8 +180,14 @@ class ProbabilisticBinarize():
         """
         if isinstance(data_matrix, torch.Tensor):
             data_np = data_matrix.numpy()
-        else:
+            if self.abs:
+                data_np = np.abs(data_np)
+        elif isinstance(data_matrix, np.ndarray):
             data_np = data_matrix.copy()
+            if self.abs:
+                data_np = np.abs(data_np)
+        else:
+            raise TypeError("Input must be the type of numpy.ndarray or torch.Tensor")
             
         original_shape = data_np.shape
         if data_np.ndim > 2:

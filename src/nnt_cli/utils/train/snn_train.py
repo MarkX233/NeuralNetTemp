@@ -105,6 +105,7 @@ def train_snn(
     mid_results=None,
     scheduler=None,
     checkpoint_sav_period=5,
+    cp_num=2,
 ):
     """
     A general training function for Spiking Neural Networks (SNN).
@@ -129,6 +130,9 @@ def train_snn(
         checkpoint_path (str, optional): Path to save the checkpoint during training. If it is None, there will be no saving of checkpoint.
         mid_results (list, optional): List containing the state of training to resume from a checkpoint.\
             The list should contain [last_epoch_num, train_l_list, train_acc_list, test_acc_list, infer_acc_list].
+        scheduler (Scheduler, optional): Learning rate scheduler to adjust the learning rate during training.
+        checkpoint_sav_period (int): Period for saving checkpoints.
+        cp_num (int): Number of checkpoints to keep. If it is 2, the last two checkpoints will be kept.
 
     Returns:
         list: Training loss, training accuracy, test accuracy, and inference accuracy lists.
@@ -237,7 +241,7 @@ def train_snn(
 
         if checkpoint_path is not None and epoch % checkpoint_sav_period == 0:
             if scheduler is not None:
-                save_checkpoint(net,optimizer,epoch,loss,train_l_list,train_acc_list,test_acc_list,infer_acc_list,checkpoint_path, scheduler=scheduler)
+                save_checkpoint(net,optimizer,epoch,loss,train_l_list,train_acc_list,test_acc_list,infer_acc_list,checkpoint_path, scheduler=scheduler,cp_retain=cp_num)
             # For now the supported amount of optimizer is one.
             else:
                 save_checkpoint(net,optimizer,epoch,loss,train_l_list,train_acc_list,test_acc_list,infer_acc_list,checkpoint_path)

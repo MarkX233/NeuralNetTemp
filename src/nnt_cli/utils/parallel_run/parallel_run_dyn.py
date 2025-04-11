@@ -8,6 +8,7 @@ from threading import Event
 import sys
 
 from nnt_cli.utils.settin.gen_settin import get_notebook_name
+from nnt_cli.utils.sl import get_next_demo_index
 
 class DynamicAssignTaskOnGPU():
     def __init__(self):
@@ -70,7 +71,8 @@ class DynamicAssignTaskOnGPU():
         if not os.path.exists(output_dir):
             os.makedirs(output_dir,exist_ok=True)
         
-        output_notebook = f"{output_dir}/{notebook_name}_output_{task_count}.ipynb"
+        output_index=get_next_demo_index(output_dir, f"{notebook_name}", ".ipynb", strict=False)
+        output_notebook = f"{output_dir}/{notebook_name}_task{task_count}_{output_index}.ipynb"
 
         # output_notebook = notebook.replace(".ipynb", f"_output_{task_count}.ipynb")  
         command = [
