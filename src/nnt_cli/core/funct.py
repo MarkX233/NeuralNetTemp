@@ -5,11 +5,12 @@ import shutil
 import sys
 import subprocess
 from datetime import datetime
+import torch
 
 import nnt_cli
 
-from .core_utils import find_files, select_template_interactive, run_git, init_repo
-from .gen_init import generate_package_init
+from nnt_cli.core.core_utils import find_files, select_template_interactive, run_git, init_repo, OptTaskRunner
+from nnt_cli.core.gen_init import generate_package_init
 
 nnt_path=Path(nnt_cli.__file__).parent
 
@@ -258,3 +259,14 @@ def sync_command(args):
         sys.exit(1)
     
     generate_package_init(CUS_DIR,recursive=True)
+
+
+def opt_command(args):
+    tasks = []
+    task_args={"train_method": 'opt'} if args.trial == -1 else {"train_method": 'opt', "n_trials": args.trial}
+    thread=torch.cuda.device_count() if args.thread == -1 else args.thread
+
+    for th in range(thread):
+        tasks.append((args.target, task_args))
+    
+    runner = OptTaskRunner(tasks, args.kernel, output2terminal=True, log=True)

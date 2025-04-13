@@ -1,7 +1,7 @@
 import argparse
 
-from core.funct import save_files, del_files, list_files, copy_files, \
-    create_project, export_custom, import_custom, git_proxy, sync_command
+from nnt_cli.core.funct import save_files, del_files, list_files, copy_files, \
+    create_project, export_custom, import_custom, git_proxy, sync_command, opt_command
 
 def main():
 
@@ -94,8 +94,13 @@ def main():
                            help='Do not push to remote')
     sync_parser.set_defaults(func=sync_command)
 
-
-
+    opt_parser = subparsers.add_parser('opt', help='Automatically optimize the hyperparameters using optuna')
+    opt_parser.add_argument('target', help='Target code to optimize, for now only support `.ipynb` file')
+    opt_parser.add_argument('-t', '--trial', type=int, default=-1, help='Number of trials, `-1` means use the setting in the code.')
+    opt_parser.add_argument('-r', '--thread', type=int, default=-1, help='Number of threads, no more than the number of GPUs, `-1` means use all available GPUs.')
+    opt_parser.add_argument('-k', "--kernel", type=str, default=None, help="Determine the running kernel.")
+    opt_parser.set_defaults(func=opt_command)
+    
     args = parser.parse_args()
     if hasattr(args, 'func'):
         args.func(args)

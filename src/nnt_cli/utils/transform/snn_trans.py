@@ -141,6 +141,11 @@ class ProbabilisticBinarize():
         The probability map is generated based on the input data's min and max values,
         and the specified scaling type.
 
+        This transform is similar to the rate encoding method used in spiking neural networks.
+        The differences are:
+        1. The probability map is generated based on the settings of min and max probabilities, not [0,1] in rate encoding.
+        2. The probability distribution is not fixed to linear, but follows a specific curve type (linear, exponential, logarithmic, square root, or power).
+
         linearly mapped data x:
         x = (data - data_min) / data_range
 

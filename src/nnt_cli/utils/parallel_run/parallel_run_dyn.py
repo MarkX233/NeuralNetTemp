@@ -40,11 +40,12 @@ class DynamicAssignTaskOnGPU():
         parser = argparse.ArgumentParser(description="A script dynamically assigns notebook running on idle GPU.")
 
         parser.add_argument("--o2t", type=bool, default=True, help="Enable or disable notebook output display in terminal.")
-        parser.add_argument("--kernel", type=str, default="kernel3", help="Determine the running kernel.")
+        parser.add_argument("--kernel", type=str, default=None, help="Determine the running kernel.")
         # GPU under these 2 threshold will be considered as idle.
-        parser.add_argument("--utilt", type=int, default=10, help="GPU utilization threshold (default: 10%%).")
-        parser.add_argument("--memt", type=int, default=60, help="GPU memory usage threshold (default: 60%%).")
+        parser.add_argument("--utilt", type=int, default=5, help="GPU utilization threshold (default: 10%%).")
+        parser.add_argument("--memt", type=int, default=30, help="GPU memory usage threshold (default: 60%%).")
         parser.add_argument("--stanum", type=int, default=1, help="Start number to name the file (default: 1).")
+        parser.add_argument("--log", type=bool, default=True, help="Enable or disable notebook output log file.")
 
         try:
             args = parser.parse_args()
@@ -58,6 +59,7 @@ class DynamicAssignTaskOnGPU():
         self.util_threshold = args.utilt
         self.memory_threshold = args.memt / 100
         self.start_num=args.stanum
+        self.log=args.log
 
     def execute_task(self,notebook, gpu_id, params, task_count,event):
         start_time = time.time()
@@ -79,8 +81,11 @@ class DynamicAssignTaskOnGPU():
             "papermill",
             notebook,
             output_notebook,
-            "--kernel", self.kernel,
         ]
+
+        if self.kernel is not None:
+            command.extend(["--kernel", self.kernel])
+
         for key, value in params.items():
             command.extend(["-p", key, str(value)])
         
@@ -103,13 +108,14 @@ class DynamicAssignTaskOnGPU():
 
         event.set()
 
-        with open(f"{notebook}_{task_count}_log.txt", "a") as logfile:
-            for line in process.stdout:
-                timestamp = datetime.now().strftime("%H:%M:%S")
-                output = f"[{timestamp}][Task:{task_count}][{notebook} on GPU {gpu_id}] {line.strip()}"
-                print(output)
-                logfile.write(output + "\n")
-                logfile.flush()
+        if self.log:
+            with open(f"{notebook}_{task_count}_log.txt", "a") as logfile:
+                for line in process.stdout:
+                    timestamp = datetime.now().strftime("%H:%M:%S")
+                    output = f"[{timestamp}][Task:{task_count}][{notebook} on GPU {gpu_id}] {line.strip()}"
+                    print(output)
+                    logfile.write(output + "\n")
+                    logfile.flush()
             
         process.wait()
 

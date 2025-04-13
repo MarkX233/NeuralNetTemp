@@ -17,6 +17,7 @@ import random
 import numpy as np
 
 import shutil
+import optuna
 
 import nnt_cli.utils as nu
 
@@ -50,6 +51,7 @@ class GeneralTemplate():
         self.onetime_flag=False
         self.double_iter_flag=False
         self.load_cp_flag=False
+        self.optuna_flag=False
 
         self.sav_final = True
         self.sav_paras = True
@@ -185,6 +187,56 @@ class GeneralTemplate():
             self.plot_final()
             self.plot_record()
     
+    def train_optuna(self, trial):
+        self.init_params()
+        self.set_optuna(trial)
+        self.optuna_flag=True
+        self.set_path()
+        self.set_dataset()
+        self.set_dataloader()
+        if self.match_name is None or self.remark is None:
+            self.set_name()
+        self.set_dir(mkdir=False)
+        self.set_results_path()
+        self.set_vary_in_iter()
+        self.set_model()
+        self.init_net()
+        self.set_train()
+
+        return self.results[2][-1] # Test Accuracy
+        # The return value is the test accuracy, which will be used by optuna to optimize the parameters.
+    
+    def optuna_optimize(self, study_name, db_url, n_trials=100):
+        from optuna.storages import RDBStorage
+
+        from nnt_cli.utils.settin.gen_settin import ensure_db_exists
+
+        # db_url = "sqlite:////path/to/your/study.db"
+        # study_name="your_study_name"
+
+        ensure_db_exists(db_url)
+
+        storage = RDBStorage(
+            url=db_url,
+            engine_kwargs={
+                "connect_args": {"timeout": 30},
+                "pool_size": 20
+            }
+        )
+        try:
+            study = optuna.create_study(
+                                        study_name=study_name,
+                                        storage=storage,
+                                        direction='maximize',
+                                        load_if_exists=True, # Load the study if it exists.
+                                        sampler=optuna.samplers.TPESampler(),
+                                        pruner=optuna.pruners.MedianPruner())
+        except optuna.exceptions.DuplicateStudyError: # in case the study is created by another process
+            study = optuna.load_study(
+                                        study_name=study_name,
+                                        storage=storage)
+        study.optimize(self.train_optuna, n_trials=n_trials)
+
     def train_continue(self,no_plot=False):
         """
         Do another training round after one time training.
@@ -243,7 +295,7 @@ class GeneralTemplate():
         print("`set_name` is not implemented.")
         pass
 
-    def set_dir(self):
+    def set_dir(self,mkdir=True):
         self.findex=nu.sl.get_next_demo_index(f"{self.notebook_path}/results",self.match_name,"dir")
 
         self.dirname=f"{self.match_name}{self.findex}"
@@ -252,7 +304,8 @@ class GeneralTemplate():
 
         self.dir_path=f"{self.notebook_path}/results/{self.dirname}"
 
-        os.makedirs(self.dir_path)
+        if mkdir is True:
+            os.makedirs(self.dir_path)
         print(f"Current work directory: {self.dir_path}")
         # Make dir first, in case multi task running at the same time.
 
@@ -274,14 +327,15 @@ class GeneralTemplate():
         """
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
 
-
-        if self.onetime_flag is False:
-            if self.double_iter_flag is True:
-                self.vary_title=f"{self.variable_name}{getattr(self,self.variable_name)}-{self.variable_name2}{getattr(self,self.variable_name2)}"
-            elif self.iter_flag is True:
-                self.vary_title=f"{self.variable_name}{getattr(self,self.variable_name)}"
-        else:
+        if self.onetime_flag is True:
             self.vary_title="Onetime"
+        elif self.optuna_flag is True:
+            self.vary_title="Optuna"
+        elif self.double_iter_flag is True:
+            self.vary_title=f"{self.variable_name}{getattr(self,self.variable_name)}-{self.variable_name2}{getattr(self,self.variable_name2)}"
+        elif self.iter_flag is True:
+            self.vary_title=f"{self.variable_name}{getattr(self,self.variable_name)}"
+            
         # `vary_title` is for the name of the final results.
 
 
@@ -397,19 +451,18 @@ class GeneralTemplate():
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
-        # This flag only allows cudnn algorithms that are determinestic unlike .benchmark
-        torch.backends.cudnn.deterministic = True
+        # # This flag only allows cudnn algorithms that are determinestic unlike .benchmark
+        # torch.backends.cudnn.deterministic = True
 
-        #this flag enables cudnn for some operations such as conv layers and RNNs, 
-        # which can yield a significant speedup.
-        torch.backends.cudnn.enabled = False
+        # #this flag enables cudnn for some operations such as conv layers and RNNs, 
+        # # which can yield a significant speedup.
+        # torch.backends.cudnn.enabled = False
 
-        # This flag enables the cudnn auto-tuner that finds the best algorithm to use
-        # for a particular configuration. (this mode is good whenever input sizes do not vary)
-        torch.backends.cudnn.benchmark = False
+        # # This flag enables the cudnn auto-tuner that finds the best algorithm to use
+        # # for a particular configuration. (this mode is good whenever input sizes do not vary)
+        # torch.backends.cudnn.benchmark = False
 
-        # I don't know if this is useful, look it up.
-        #os.environ['PYTHONHASHSEED'] = str(seed)
+        os.environ['PYTHONHASHSEED'] = str(seed)
 
     def check_dataset(self,cache_mode=None):
         """
@@ -528,3 +581,12 @@ class GeneralTemplate():
         """
         grad_norms = [p.grad.norm().item() for p in self.net.parameters()]
         print(f"Gradient norm: {np.mean(grad_norms):.3e} ± {np.std(grad_norms):.3e}, the normal value should be between 1E-6 and 1E-3")
+
+    def set_optuna(self, trial):
+        self.sav_final = False
+        self.sav_paras = False
+        self.sav_state = False
+        self.sav_checkpoint = False
+        
+        print("`set_optuna` is not implemented.")
+        pass

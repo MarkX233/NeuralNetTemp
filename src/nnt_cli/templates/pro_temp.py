@@ -102,6 +102,9 @@ class _Project_Template(GeneralTemplate):
         else:
             raise ValueError("with_cache must be one of '2stage', 'Full', 'False'")
         
+        if self.optuna_flag is True: # for optuna, optional
+            self.train_dataset, self.val_dataset = random_split(self.train_dataset, [1-self.val_size, self.val_size])
+        
         if self.quick_debug is True:
                 # For quick debug
                 trainset_size = range(int(len(self.train_dataset)*self.qb_dataset_size))
@@ -140,6 +143,11 @@ class _Project_Template(GeneralTemplate):
         self.infer_loader = DataLoader(infer_subset, batch_size=self.batch_size, 
                                        collate_fn=PadTensors(batch_first=False),
                                        shuffle=False, num_workers=num_workers,pin_memory=True)
+        
+        if hasattr(self, 'val_dataset'):
+            self.val_loader = DataLoader(self.val_dataset, batch_size=self.batch_size, 
+                                         collate_fn=PadTensors(batch_first=False),
+                                         shuffle=False, num_workers=num_workers,pin_memory=True)
 
     def set_name(self):
         """
@@ -204,7 +212,13 @@ class _Project_Template(GeneralTemplate):
         """
         num_steps = 0
         # Not used
-        if self.load_cp_flag:
+        if self.optuna_flag is True:
+            # Use val_loader for optuna
+            self.results=nu.train.snn_train.train_snn(self.net,self.train_loader,self.val_loader,self.loss,self.num_epochs,self.optimizer,
+                                    num_steps,infer_loader=None, SF_funct=True, in2spk=False, 
+                                    forward=True, eve_in=True,device=self.device,debug_mode=self.debug_mode,
+                                    checkpoint_path=self.checkpoint_path)
+        elif self.load_cp_flag:
             self.results=nu.train.snn_train.train_snn(self.net,self.train_loader,self.test_loader,self.loss,self.num_epochs,self.optimizer,
                                     num_steps,infer_loader=self.infer_loader, SF_funct=True, in2spk=False, 
                                     forward=True, eve_in=True,device=self.device,debug_mode=self.debug_mode,

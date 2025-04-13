@@ -4,6 +4,8 @@ from datetime import datetime
 import sys
 import os
 
+# from nnt_cli.utils.parallel_run.parallel_run import ParallelNotebookRunner
+from nnt_cli.utils.parallel_run.parallel_run_dyn import DynamicAssignTaskOnGPU
 
 def find_files(template_name, search_paths):
     """Search for template files in multiple directories"""
@@ -103,3 +105,12 @@ def init_repo(custom_path):
     if not gitignore.exists():
         print("Generating a new gitignore file.")
         gitignore.write_text(GITIGNORE_CONTENT)
+
+class OptTaskRunner(DynamicAssignTaskOnGPU):
+    def __init__(self, tasks, kernel,output2terminal=False, logfile=False):
+        self.kernel = kernel
+        self.output2terminal = output2terminal
+        self.log = logfile
+        self.notebooks_tasks = tasks
+        self.get_gpu_status()
+        self.assign_and_exe()

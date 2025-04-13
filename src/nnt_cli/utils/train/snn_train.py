@@ -233,7 +233,7 @@ def train_snn(
 
         if infer_loader is not None:
             infer_acc = eval_acc(infer_loader, net, num_steps, device=device,in2spk=in2spk,
-                                 forward=forward,eve_in=eve_in,sav_layer_en=flag_last_epoch)
+                                 forward=forward,eve_in=eve_in,sav_layer_en=flag_last_epoch) # Save the input inference data for the last epoch.
             infer_acc_list.append(infer_acc)
         else:
             infer_acc=0

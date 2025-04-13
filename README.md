@@ -109,17 +109,18 @@ With these 3 different layer of files, you can easily manage the code and reuse 
 
 ### 3. Run the project
 
-You can directly use:
+The simplest way to run a work is directly running the notebook.
+I have already explained `train_onetime` method, you can also use different training methods instead of `train_onetime` method. For example, you can perform the training process with iteration/sweep or double iteration, if you change `train_method`. The iteration settings are defined in `set_iter` method.
+
+
+If you set up the `task_script.py`, you can use:
 
 ```bash
 python task_script.py
 ```
 
-to run the task. But most importantly, you must set the kernel with `--kernel` before running the task.
+to run the task. `task_script` is extremely useful when you have multiple tasks to run. You can set the parameters in the `task_script.py` file, and it will automatically call the `model.ipynb` with the parameters passed from the task script.
 
-```bash
-python task_script.py --kernel your_kernel_name
-```
 
 Use `python task_script.py --help` to see the help message of task script.
 
@@ -206,3 +207,43 @@ nnt sync --first
 
 It will create a `.gitignore` file in the custom folder and ignore the pyc and log files. You can also use `nnt sync` to sync your local files to the remote repository for a quick sync. You can also use the git command to manage your custom code. It's the same as the git command, but use `nnt` before `git`, so the custom code you saved will be operated.
 
+### Use optuna to optimize the model
+
+The `nnt` package also provides a simple way to use optuna to optimize the model. In `model.ipynb`, a template setting for optuna is provided. In `set_optuna` method, you can define the parameters and its range. 
+
+```python
+self.learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
+self.beta = trial.suggest_float("beta", 0.5, 0.95, step=0.05)
+self.weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
+self.dropout_prob = trial.suggest_float("dropout_prob", 0.1, 0.5, step=0.05)
+```
+
+Also set `val_size`, because when using optuna, the training process will be performed with the validation set instead of test dataset. The difference is the validation dataset size is part of the training dataset size.
+
+Set basic parameters of optuna in parameters cell.
+
+```python
+# Optuna parameters
+n_trials=100 # Number of trials for Optuna to optimize hyperparameters.
+db_url = "sqlite:////path/to/your/study.db" # SQLite database URL for Optuna. If file doesn't exist, it will be created.
+study_name=notebook_name # Name of the study for Optuna.
+```
+
+Then change the `train_method` to `'opt'` and start the notebook, the optuna will start to optimize the model. 
+You can use the following command to visualize the optimization process.
+
+```bash
+optuna dashboard sqlite:////path/to/your/study.db
+```
+
+The best thing about optuna is by using sql, you can easily run the optimization process on multiple devices. Because of the characteristics of SQL and optuna, every one possible parameter setting has one unique `trial_id`, when that setting of training is running, the corresponding part of SQL database will be locked. So we can simply run the same code on multiple devices, and optuna will automatically allocate different trials to different devices, as long as `db_url` and `study_name` are the same.
+
+If you are using the platform with multiple GPUs, you can use the following command to run the optuna optimization on multiple GPUs.
+
+```bash
+nnt opt model.ipynb
+```
+
+This command will run the optuna optimization on maximum GPUs available. You can also use the `-r` or `--thread` option to specify the GPU you want to use. The optuna task will be allocated to free GPUs.
+
+For details, please use `nnt opt --help` to see the help message.

@@ -4,6 +4,8 @@ import os
 import re
 import json
 from torch.utils.data import random_split
+from sqlalchemy import create_engine, text
+from pathlib import Path
 
 def get_num_workers(mode,dist_num=4):
     """
@@ -146,3 +148,23 @@ def spilt_dataset(infer_size, dataset_in):
     return subset_out, infer_subset
 
 
+def ensure_db_exists(db_url: str):
+    """Automatically create database files and directories (if not present)"""
+    if db_url.startswith("sqlite:///"):
+        db_path = Path(db_url[10:])
+        db_dir = db_path.parent
+        
+        db_dir.mkdir(parents=True, exist_ok=True)
+        
+        if not db_path.exists():
+            db_path.touch(mode=0o664)
+            print(f"Created new database: {db_path}")
+            
+            engine = create_engine(db_url)
+            with engine.connect() as conn:
+                conn.execute(text("PRAGMA journal_mode=WAL;"))
+                conn.execute(text("PRAGMA synchronous=NORMAL;"))
+            engine.dispose()
+            print(f"Configured database: {db_path}")
+        else:
+            print(f"Database already exists: {db_path}")
