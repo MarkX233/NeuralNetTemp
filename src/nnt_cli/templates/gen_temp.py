@@ -1,3 +1,4 @@
+from abc import abstractmethod
 import os
 from pathlib import Path
 import torch
@@ -207,7 +208,7 @@ class GeneralTemplate():
         # The return value is the test accuracy, which will be used by optuna to optimize the parameters.
     
     def optuna_optimize(self, study_name, db_url, n_trials=100):
-        from optuna.storages import RDBStorage
+        from optuna.storages import RDBStorage, RetryFailedTrialCallback
 
         from nnt_cli.utils.settin.gen_settin import ensure_db_exists
 
@@ -221,7 +222,8 @@ class GeneralTemplate():
             engine_kwargs={
                 "connect_args": {"timeout": 30},
                 "pool_size": 20
-            }
+            },
+            failed_trial_callback=RetryFailedTrialCallback(max_retry=3), # Retry failed trials
         )
         try:
             study = optuna.create_study(
@@ -338,7 +340,7 @@ class GeneralTemplate():
             
         # `vary_title` is for the name of the final results.
 
-
+    @abstractmethod
     def set_model(self):
         """Set the model here."""
         self.net = None
@@ -364,7 +366,7 @@ class GeneralTemplate():
             # if isinstance(layer, snn.Leaky):
             #     init.normal_(layer.threshold, mean=0.5, std=0.01)
             #     init.normal_(layer.beta, mean=0.3, std=0.01)
-
+    @abstractmethod
     def set_train(self):
         """Set the training process here. 
         The results should be a list containing `Train Loss`, `Train Accuracy`, `Test Accuracy`, `Infer Accuracy`."""
@@ -587,6 +589,3 @@ class GeneralTemplate():
         self.sav_paras = False
         self.sav_state = False
         self.sav_checkpoint = False
-        
-        print("`set_optuna` is not implemented.")
-        pass

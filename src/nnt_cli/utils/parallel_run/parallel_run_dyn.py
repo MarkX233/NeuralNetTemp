@@ -30,7 +30,7 @@ class DynamicAssignTaskOnGPU():
             - parameters (dict): A dictionary of parameters to pass to the notebook.
                                 The parameters need to be first set in the certain cell with `parameters` tag in the notebook.
         """
-        self.notebooks_task = [
+        self.notebooks_tasks = [
             ("L2.ipynb", {"para_mode": True, "num_epochs" : 5}),
             ("L3.ipynb", {"para_mode": True, "num_epochs" : 5}),
             ("L4.ipynb", {"para_mode": True, "num_epochs" : 5}),
@@ -145,7 +145,7 @@ class DynamicAssignTaskOnGPU():
         return gpu_status
     
     def assign_and_exe(self):
-        tasks = self.notebooks_task[:]
+        tasks = self.notebooks_tasks[:]
         threads = []
         last_gpu=None
         task_count=self.start_num-1

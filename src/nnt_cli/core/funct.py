@@ -9,7 +9,7 @@ import torch
 
 import nnt_cli
 
-from nnt_cli.core.core_utils import find_files, select_template_interactive, run_git, init_repo, OptTaskRunner
+from nnt_cli.core.core_utils import find_files, select_template_interactive, run_git, init_repo, OptTaskRunner, OptTaskRunner_static
 from nnt_cli.core.gen_init import generate_package_init
 
 nnt_path=Path(nnt_cli.__file__).parent
@@ -263,10 +263,25 @@ def sync_command(args):
 
 def opt_command(args):
     tasks = []
-    task_args={"train_method": 'opt'} if args.trial == -1 else {"train_method": 'opt', "n_trials": args.trial}
-    thread=torch.cuda.device_count() if args.thread == -1 else args.thread
+    task_args={"train_method": 'opt'} if args.trial <= -1 else {"train_method": 'opt', "n_trials": args.trial}
+    thread=torch.cuda.device_count() if args.thread <= -1 else args.thread
 
-    for th in range(thread):
-        tasks.append((args.target, task_args))
-    
-    runner = OptTaskRunner(tasks, args.kernel, output2terminal=True, log=True)
+    assert args.target.endswith(".ipynb"), "The target file must be a Jupyter notebook (.ipynb)"
+    assert isinstance(args.static, list) and all(isinstance(x, int) for x in args.static), f"The static GPU list is not valid - {args.static}, it must be a list of integers."
+    assert len(args.static) < thread and max(args.static) < thread, f"The static GPU list is not valid - {args.static}, it must be a list of integers less than the thread number - {thread}."
+
+    if args.static is None:
+        # Dynamic GPU allocation
+        for th in range(thread):
+            tasks.append((args.target, task_args))
+        
+        runner = OptTaskRunner(tasks, args.kernel, output2terminal=args.output, logfile=args.log)
+    else:
+        # Static GPU allocation
+        for th in args.static:
+            tasks.append((args.target, th, task_args))
+
+        runner = OptTaskRunner_static(tasks, args.kernel, output2terminal=args.output, logfile=args.log)
+
+
+
