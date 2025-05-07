@@ -1,5 +1,5 @@
 import argparse
-import ast
+
 
 from nnt_cli.core.funct import save_files, del_files, list_files, copy_files, \
     create_project, export_custom, import_custom, git_proxy, sync_command, opt_command
@@ -61,7 +61,8 @@ def main():
     create_parser.add_argument("target_dir", nargs="?", default=".", help="Target directory")
     create_parser.add_argument("-t","--template_name", default=None, help="Indicate specific template name you want to start.")
     create_parser.set_defaults(func=create_project)
-
+    
+    # export-custom-code 
     export_parser = subparsers.add_parser(
         "export-custom",
         aliases=["ec"],
@@ -70,6 +71,7 @@ def main():
     export_parser.add_argument("export_dir", nargs="?", default=".", help="Target export directory")
     export_parser.set_defaults(func=export_custom)
 
+    # import-custom-code
     import_parser = subparsers.add_parser(
         "import-custom",
         aliases=["ic"],
@@ -100,9 +102,9 @@ def main():
     opt_parser.add_argument('-t', '--trial', type=int, default=-1, help='Number of trials, `-1` means use the setting in the code.')
     opt_parser.add_argument('-r', '--thread', type=int, default=-1, help='Number of threads, no more than the number of GPUs, `-1` means use all available GPUs.')
     opt_parser.add_argument('-k', "--kernel", type=str, default=None, help="Determine the running kernel.")
-    opt_parser.add_argument('-o', "--output", type=bool, default=True, help="Output info to terminal.")
-    opt_parser.add_argument('-l', "--log", type=bool, default=True, help="Output info to log file.")
-    opt_parser.add_argument('-s', "--static", type=ast.literal_eval, default=None, help="Indicate static GPU to perform the optimization. e.g. [0,1,2] means use GPU 0,1,2 to perform the optimization.")
+    opt_parser.add_argument('-no', "--no_output", action="store_false", help="Disable output info to terminal.")
+    opt_parser.add_argument('-nl', "--no_log", action="store_false", help="Disable output info to log file.")
+    opt_parser.add_argument('-s', "--static", type=str, default=None, help="Indicate static GPU to perform the optimization. e.g. [0,1,2] means use GPU 0,1,2 to perform the optimization.")
     opt_parser.set_defaults(func=opt_command)
     
     args = parser.parse_args()

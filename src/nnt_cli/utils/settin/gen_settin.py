@@ -6,6 +6,7 @@ import json
 from torch.utils.data import random_split
 from sqlalchemy import create_engine, text
 from pathlib import Path
+from urllib.parse import urlparse
 
 def get_num_workers(mode,dist_num=4):
     """
@@ -148,23 +149,37 @@ def spilt_dataset(infer_size, dataset_in):
     return subset_out, infer_subset
 
 
-def ensure_db_exists(db_url: str):
+def ensure_db_exists(db_url: str, mk_db:bool = True) -> None:
     """Automatically create database files and directories (if not present)"""
     if db_url.startswith("sqlite:///"):
-        db_path = Path(db_url[10:])
+        db_path = Path(urlparse(db_url).path)
         db_dir = db_path.parent
         
-        db_dir.mkdir(parents=True, exist_ok=True)
-        
-        if not db_path.exists():
+        if not db_path.exists() and mk_db:
+            # Create the database file if it doesn't exist
+            db_dir.mkdir(parents=True, exist_ok=True)
             db_path.touch(mode=0o664)
             print(f"Created new database: {db_path}")
             
-            engine = create_engine(db_url)
+            engine = create_engine(db_url, connect_args={"timeout": 30})
             with engine.connect() as conn:
                 conn.execute(text("PRAGMA journal_mode=WAL;"))
                 conn.execute(text("PRAGMA synchronous=NORMAL;"))
             engine.dispose()
             print(f"Configured database: {db_path}")
+        elif not db_path.exists():
+            print(f"Database does not exist and mk_db is False: {db_path}")
         else:
             print(f"Database already exists: {db_path}")
+        
+
+
+def cleanup_sqlite_locks(db_url):
+    if db_url.startswith("sqlite:///"):
+        parsed = urlparse(db_url)
+        db_path = parsed.path
+        for suffix in ['-journal', '-wal', '-shm']:
+            lock_path = db_path + suffix
+            if os.path.exists(lock_path):
+                print(f"Deleting lock file: {lock_path}")
+                os.remove(lock_path)

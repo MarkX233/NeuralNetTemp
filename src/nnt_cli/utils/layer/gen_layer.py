@@ -62,15 +62,17 @@ class InputSaviorLayer(nn.Module):
 
             else:
                 dirpath = dirpath + "_new"
-                os.makedirs(dirpath)
+                # os.makedirs(dirpath)
                 print(f"Input data will be saved in {dirpath}.")
-        else:
-            os.makedirs(dirpath)
+        # else:
+        #     os.makedirs(dirpath)
                 
+        self.dirpath=dirpath
         
     def forward(self, x):
         # x: tensor/QuantTensor, [batch_size, frame], with/without time scale.
         if self.sav_en is True:
+            os.makedirs(self.dirpath, exist_ok=True)  # Create directory if it doesn't exist.
             if isinstance(x, QuantTensor):
                 if self.int_quant_tensor is True:
                     convert_x=float_quant_tensor2int(x).detach().cpu().tolist()

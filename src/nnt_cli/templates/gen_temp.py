@@ -207,15 +207,26 @@ class GeneralTemplate():
         return self.results[2][-1] # Test Accuracy
         # The return value is the test accuracy, which will be used by optuna to optimize the parameters.
     
-    def optuna_optimize(self, study_name, db_url, n_trials=100):
+    def optuna_optimize(self, study_name, db_url, n_trials=100, unlock=True, mk_db=True):
+        """
+        Optimize the hyperparameters using optuna.
+        
+        Args:
+            study_name: The name of the study.
+            db_url: The url of the database. For example, db_url = "sqlite:////path/to/your/study.db"
+            n_trials: The number of trials.
+            unlock: If True, unlock the database, when KeyboardInterrupt.
+            mk_db: If True, create the database if it doesn't exist.
+        """
         from optuna.storages import RDBStorage, RetryFailedTrialCallback
 
-        from nnt_cli.utils.settin.gen_settin import ensure_db_exists
+        from nnt_cli.utils.settin.gen_settin import ensure_db_exists, cleanup_sqlite_locks
 
-        # db_url = "sqlite:////path/to/your/study.db"
-        # study_name="your_study_name"
+        # Check if the database is locked, if so, unlock it.
+        cleanup_sqlite_locks(db_url)
 
-        ensure_db_exists(db_url)
+        # Check if the database exists, if not, create it.
+        ensure_db_exists(db_url,mk_db=mk_db)
 
         storage = RDBStorage(
             url=db_url,
@@ -237,7 +248,13 @@ class GeneralTemplate():
             study = optuna.load_study(
                                         study_name=study_name,
                                         storage=storage)
-        study.optimize(self.train_optuna, n_trials=n_trials)
+        try:
+            study.optimize(self.train_optuna, n_trials=n_trials)
+        except KeyboardInterrupt:
+            print("Optimization stopped by user.")
+            if unlock:
+                cleanup_sqlite_locks(db_url)
+            
 
     def train_continue(self,no_plot=False):
         """
@@ -259,7 +276,7 @@ class GeneralTemplate():
 
         self.parent_path = os.path.join(self.notebook_path, "..")
 
-
+    @abstractmethod
     def set_dataset(self):
         """
         Set the dataset here.
@@ -268,6 +285,7 @@ class GeneralTemplate():
         self.test_dataset=None
         print("`set_dataset` is not implemented.")
 
+    @abstractmethod
     def set_dataloader(self):
         if self.para_mode is True:
             num_workers=nu.settin.gen_settin.get_num_workers("Dist",dist_num=4)
@@ -283,6 +301,7 @@ class GeneralTemplate():
         self.infer_loader = None
         print("`set_dataloader` is not implemented.")
 
+    @abstractmethod
     def set_name(self):
         """
         For output filename
@@ -298,6 +317,10 @@ class GeneralTemplate():
         pass
 
     def set_dir(self,mkdir=True):
+        """
+        Set the directory here.
+        The directory will be created in the `results` folder in the current notebook path.
+        """
         self.findex=nu.sl.get_next_demo_index(f"{self.notebook_path}/results",self.match_name,"dir")
 
         self.dirname=f"{self.match_name}{self.findex}"
@@ -309,7 +332,6 @@ class GeneralTemplate():
         if mkdir is True:
             os.makedirs(self.dir_path)
         print(f"Current work directory: {self.dir_path}")
-        # Make dir first, in case multi task running at the same time.
 
     def set_results_path(self):
 
@@ -544,7 +566,7 @@ class GeneralTemplate():
 
         print(f"Time length: {time_len_dict}")
     
-    def get_visual_frame_distribution(self, dataset_num=0, quantile=0.99, time_distri=True):
+    def get_visual_frame_distribution(self, dataset_num=0, quantile=0.99, time_distri=True, font_scale=1.0):
         """
         Plot frame value distribution from dataset
         """
@@ -561,10 +583,10 @@ class GeneralTemplate():
             frame0, _ = self.train_preset[dataset_num]
 
             if time_distri:
-                nu.plot.anal_plot.plot_time_step_distribution(self.train_preset)
+                nu.plot.anal_plot.plot_time_step_distribution(self.train_preset, font_scale=font_scale)
 
-            nu.plot.anal_plot.visualize_event_distribution(frame0,title="Pre-Frames Event Distribution Analysis")
-            nu.plot.anal_plot.visualize_value_distribution(frame0,title="Pre-Frames Value Distribution Analysis")
+            nu.plot.anal_plot.visualize_event_distribution(frame0,title="Pre-Frames Event Distribution Analysis", font_scale=font_scale)
+            nu.plot.anal_plot.visualize_value_distribution(frame0,title="Pre-Frames Value Distribution Analysis", font_scale=font_scale)
         else:
             print("Warning! `train_preset` is not set yet.")
 
@@ -572,7 +594,7 @@ class GeneralTemplate():
 
             frame,label = self.train_dataset[dataset_num]
 
-            nu.plot.anal_plot.visualize_value_distribution(frame,title="Full Transformed Frames Value Distribution Analysis")
+            nu.plot.anal_plot.visualize_value_distribution(frame,title="Full Transformed Frames Value Distribution Analysis", font_scale=font_scale)
             nu.plot.anal_plot.visualize_distribution_robust(frame,title="Full Transformed Frames Filter Value Distribution Analysis", quantile=quantile)
         else:
             print("Warning! `train_dataset` is not set yet.")
@@ -584,6 +606,7 @@ class GeneralTemplate():
         grad_norms = [p.grad.norm().item() for p in self.net.parameters()]
         print(f"Gradient norm: {np.mean(grad_norms):.3e} ± {np.std(grad_norms):.3e}, the normal value should be between 1E-6 and 1E-3")
 
+    @abstractmethod
     def set_optuna(self, trial):
         self.sav_final = False
         self.sav_paras = False
