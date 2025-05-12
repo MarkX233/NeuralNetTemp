@@ -42,8 +42,8 @@ class DynamicAssignTaskOnGPU():
         parser.add_argument("--o2t", type=bool, default=True, help="Enable or disable notebook output display in terminal.")
         parser.add_argument("--kernel", type=str, default=None, help="Determine the running kernel.")
         # GPU under these 2 threshold will be considered as idle.
-        parser.add_argument("--utilt", type=int, default=5, help="GPU utilization threshold (default: 10%%).")
-        parser.add_argument("--memt", type=int, default=30, help="GPU memory usage threshold (default: 60%%).")
+        parser.add_argument("--utilt", type=int, default=5, help="GPU utilization threshold (default: 5%%).")
+        parser.add_argument("--memt", type=int, default=30, help="GPU memory usage threshold (default: 30%%).")
         parser.add_argument("--stanum", type=int, default=1, help="Start number to name the file (default: 1).")
         parser.add_argument("--log", type=bool, default=True, help="Enable or disable notebook output log file.")
 
@@ -184,10 +184,10 @@ class DynamicAssignTaskOnGPU():
                         event.wait()
                         threads.append(thread)
                         if last_gpu is None:
-                            time.sleep(90)  # Initial time for papermill to start kernel at first start.
+                            time.sleep(60)  # Initial time for papermill to start kernel at first start.
                         last_gpu=gpu_id
                         start_time = time.time()
-                        time.sleep(45) # Wait for the assigned task to start, which prevents the order is messed up. 
+                        time.sleep(30) # Wait for the assigned task to start, which prevents the order is messed up. 
                         continue
                 else:
                     timestamp = datetime.now().strftime("%H:%M:%S")
