@@ -48,17 +48,22 @@ class GeneralTemplate():
         """
         The parameters here that don't need to be changed by script, only by initial setting.
         """
-        self.iter_flag=False
+        self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+        
+        self.iter_flag=False 
         self.onetime_flag=False
         self.double_iter_flag=False
         self.load_cp_flag=False
         self.optuna_flag=False
 
+        self.train_method="one"
+
+        # Save switch
         self.sav_final = True
         self.sav_paras = True
-        self.sav_state = True
+        self.sav_state = False # Recommended to be False, use sav_checkpoint instead.
         self.sav_checkpoint = True
-        # Save switch
+        
 
         self.record={}
 
@@ -81,96 +86,25 @@ class GeneralTemplate():
         self.vary_list2=[64,128,256,512]
         self.variable_name2="num_hiddens"
 
+    def perform_training(self, train_method='one'):
+        match train_method:
+            case "one":
+                self.train_onetime(no_plot=True)
+            case "iter":
+                self.train_iter(no_plot=True)
+            case "diter":
+                self.train_double_iter(no_plot=True)
+            case "cp":
+                self.load_checkpoint(self.cp_fpath,no_plot=True)
+            case "opt":
+                self.optuna_optimize(study_name=self.notebook_name, db_url=self.db_url, n_trials=self.n_trials)
+            case _:
+                raise ValueError("Invalid train method!")
+
     def load_checkpoint(self,cp_fpath,no_plot=False):
         self.init_params()
         self.load_cp_flag=True
-        self.set_path()
-        self.set_dataset()
-        if self.match_name is None or self.remark is None:
-            self.set_name()
-        self.set_dir()
-        self.set_results_path()
-        self.set_model()
-        self.init_net()
-        if hasattr(self, 'scheduler') and self.scheduler is not None:
-            _,self.cp_mid_results=nu.sl.load_checkpoint(self.net,self.optimizer,cp_fpath, scheduler=self.scheduler)
-        else:
-            _,self.cp_mid_results=nu.sl.load_checkpoint(self.net,self.optimizer,cp_fpath)
-        # Here we don't need loss, 'cause set_model has defined loss.
-        self.set_train()
-        self.set_store_onetime()
-        self.set_store_record()
-        if no_plot is False:
-            self.plot_final()
-            self.plot_record()
-
-
-
-    def train_double_iter(self,no_plot=False):
-        self.init_params()
-        self.double_iter_flag=True
-        self.set_path()
-        self.set_dataset()
-        self.set_dataloader()
-        if self.match_name is None or self.remark is None:
-            self.set_name()
-        self.set_dir()
-        self.set_results_path()
-        self.set_iter()
-        for vari2 in tqdm(self.vary_list2,desc="Second Iteration"):
-            setattr(self, self.variable_name2, vari2)
-            self.vari2=vari2
-            # For saving record
-            for vari in tqdm(self.vary_list,desc="First Iteration"):
-                setattr(self, self.variable_name, vari)
-                self.vari1=vari
-                print("====================================================")
-                print(f"Training {self.variable_name}={getattr(self,self.variable_name)} and {self.variable_name2}={getattr(self,self.variable_name2)}")
-                print(f"Progress:{self.vary_list2.index(vari2)+1} / {len(self.vary_list2)} of {self.vary_list.index(vari)+1} / {len(self.vary_list)}")
-                print("====================================================")
-                self.set_vary_in_iter()
-                self.set_model()
-                self.init_net()
-                self.set_train()
-                self.set_store_onetime()
-
-        self.set_store_record()
-        if no_plot is False:
-            self.plot_final()
-            self.plot_record()
-
-    def train_iter(self,no_plot=False):
-        self.init_params()
-        self.iter_flag=True
-        self.set_path()
-        self.set_dataset()
-        self.set_dataloader()
-        if self.match_name is None or self.remark is None:
-            self.set_name()
-        self.set_dir()
-        self.set_results_path()
-        self.set_iter()
-        for vari in tqdm(self.vary_list,desc="Iteration"):
-            setattr(self, self.variable_name, vari)
-            self.vari1=vari
-            # For saving record
-            print("====================================================")
-            print(f"Training {self.variable_name}={getattr(self,self.variable_name)}")
-            print(f"Progress:{self.vary_list.index(vari)+1} / {len(self.vary_list)}")
-            print("====================================================")
-            self.set_vary_in_iter()
-            self.set_model()
-            self.init_net()
-            self.set_train()
-            self.set_store_onetime()
-        self.set_store_record()
-        if no_plot is False:
-            self.plot_final()
-            self.plot_record()
-    
-    def train_onetime(self,no_plot=False):
-        self.init_params()
-        self.onetime_flag=True
+        self.train_method="cp"
         self.set_path()
         self.set_dataset()
         self.set_dataloader()
@@ -181,6 +115,118 @@ class GeneralTemplate():
         self.set_vary_in_iter()
         self.set_model()
         self.init_net()
+        if hasattr(self, 'scheduler'):
+            self.checkpoint=nu.sl.load_checkpoint(cp_fpath,model=self.net,optimizer=self.optimizer, scheduler=self.scheduler, device=self.device)
+        else:
+            self.checkpoint=nu.sl.load_checkpoint(cp_fpath,model=self.net,optimizer=self.optimizer, device=self.device)
+
+        if 'train_method' not in self.checkpoint or self.checkpoint['train_method'] == 'one':
+            self.set_train()
+            self.set_store_onetime()
+            self.set_store_record()
+            if no_plot is False:
+                self.plot_final()
+                self.plot_record()
+        elif self.checkpoint['train_method'] == 'iter':
+            self._load_cp_params()
+            self.vary_list=self.vary_list[self.cur_vari_index:]
+
+            self.train_iter(no_plot=no_plot)
+        elif self.checkpoint['train_method'] == 'diter':
+            self._load_cp_params()
+            self.vary_list=self.vary_list[self.cur_vari_index:]
+            self.vary_list2=self.vary_list2[self.cur_vari_index2:]
+
+            self.train_double_iter(no_plot=no_plot)
+
+
+
+    def train_double_iter(self,no_plot=False):
+        if self.load_cp_flag is False:
+            self.init_params()
+            self.double_iter_flag=True
+            self.train_method="diter"
+            self.set_path()
+            self.set_dataset()
+            self.set_dataloader()
+            if self.match_name is None or self.remark is None:
+                self.set_name()
+            self.set_dir()
+            self.set_results_path()
+            self.set_iter()
+        for vari2 in tqdm(self.vary_list2,desc="Second Iteration"):
+            setattr(self, self.variable_name2, vari2)
+            self.vari2=vari2
+            self.cur_vari_index2=self.vary_list2.index(vari2)
+            # For saving record
+            for vari in tqdm(self.vary_list,desc="First Iteration"):
+                setattr(self, self.variable_name, vari)
+                self.vari1=vari
+                self.cur_vari_index=self.vary_list.index(vari)
+                print("====================================================")
+                print(f"Training {self.variable_name}={getattr(self,self.variable_name)} and {self.variable_name2}={getattr(self,self.variable_name2)}")
+                print(f"Progress:{self.cur_vari_index2+1} / {len(self.vary_list2)} of {self.cur_vari_index+1} / {len(self.vary_list)}")
+                print("====================================================")
+                self.set_vary_in_iter()
+                self.set_model()
+                self.init_net()
+                self.set_additional_cp_dict()
+                self.set_train()
+                self.set_store_onetime()
+
+        self.set_store_record()
+        if no_plot is False:
+            self.plot_final()
+            self.plot_record()
+
+    def train_iter(self,no_plot=False):
+        if self.load_cp_flag is False:
+            self.init_params()
+            self.iter_flag=True
+            self.train_method="iter"
+            self.set_path()
+            self.set_dataset()
+            self.set_dataloader()
+            if self.match_name is None or self.remark is None:
+                self.set_name()
+            self.set_dir()
+            self.set_results_path()
+            self.set_iter()
+        for vari in tqdm(self.vary_list,desc="Iteration"):
+            setattr(self, self.variable_name, vari)
+            self.vari1=vari
+            # For saving record
+            self.cur_vari_index=self.vary_list.index(vari)
+            print("====================================================")
+            print(f"Training {self.variable_name}={getattr(self,self.variable_name)}")
+            print(f"Progress:{self.cur_vari_index+1} / {len(self.vary_list)}")
+            print("====================================================")
+            self.set_vary_in_iter()
+            self.set_model()
+            self.init_net()
+            self.set_additional_cp_dict()
+            self.set_train()
+            self.set_store_onetime()
+        self.set_store_record()
+        if no_plot is False:
+            self.plot_final()
+            self.plot_record()
+    
+    def train_onetime(self,no_plot=False):
+        self.init_params()
+        self.onetime_flag=True
+        self.train_method="one"
+        self.set_path()
+        self.set_dataset()
+        self.set_dataloader()
+        if self.match_name is None or self.remark is None:
+            self.set_name()
+        self.set_dir()
+        self.set_results_path()
+        self.set_vary_in_iter()
+        self.set_model()
+        self.init_net()
+        self.set_additional_cp_dict()
         self.set_train()
         self.set_store_onetime()
         self.set_store_record()
@@ -192,6 +238,7 @@ class GeneralTemplate():
         self.init_params()
         self.set_optuna(trial)
         self.optuna_flag=True
+        self.train_method="opt"
         self.set_path()
         self.set_dataset()
         self.set_dataloader()
@@ -259,7 +306,7 @@ class GeneralTemplate():
     def train_continue(self,no_plot=False):
         """
         Do another training round after one time training.
-        Used in debug and testing
+        Used only in debug and testing.
         """
         self.set_train()
         self.set_store_onetime()
@@ -349,12 +396,14 @@ class GeneralTemplate():
         """
         The variables need to be set in the iteration (when there is one).
         """
-        self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+        # self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
 
         if self.onetime_flag is True:
             self.vary_title="Onetime"
         elif self.optuna_flag is True:
             self.vary_title="Optuna"
+        elif self.load_cp_flag is True:
+            self.vary_title="Load Checkpoint"
         elif self.double_iter_flag is True:
             self.vary_title=f"{self.variable_name}{getattr(self,self.variable_name)}-{self.variable_name2}{getattr(self,self.variable_name2)}"
         elif self.iter_flag is True:
@@ -388,6 +437,35 @@ class GeneralTemplate():
             # if isinstance(layer, snn.Leaky):
             #     init.normal_(layer.threshold, mean=0.5, std=0.01)
             #     init.normal_(layer.beta, mean=0.3, std=0.01)
+
+    def set_additional_cp_dict(self):
+        """
+        Set additional checkpoint dictionary to save.
+        """
+        self.cp_add_dict={
+                "train_method":self.train_method,
+                "dirname": self.dirname,
+                "remark": self.remark,
+                "match_name": self.match_name,
+                "suptitle": self.suptitle,
+                # "dir_path": self.dir_path,
+                "res_path": self.res_path,
+                "paras_path": self.paras_path,
+                "vary_title": self.vary_title,
+            }
+        if hasattr(self, 'variable_name'):
+            self.cp_add_dict["variable_name"]=self.variable_name
+        if hasattr(self, 'vary_list'):
+            self.cp_add_dict["vary_list"]=self.vary_list
+        if hasattr(self, 'variable_name2'):
+            self.cp_add_dict["variable_name2"]=self.variable_name2
+        if hasattr(self, 'vary_list2'):
+            self.cp_add_dict["vary_list2"]=self.vary_list2
+        if hasattr(self, 'cur_vari_index'):
+            self.cp_add_dict["cur_vari_index"]=self.cur_vari_index
+        if hasattr(self, 'cur_vari_index2'):
+            self.cp_add_dict["cur_vari_index2"]=self.cur_vari_index2
+
     @abstractmethod
     def set_train(self):
         """Set the training process here. 
@@ -442,7 +520,7 @@ class GeneralTemplate():
                                  self.vary_title,overwrite=True)
 
         if self.sav_state is True:
-            if hasattr(self, 'scheduler') and self.scheduler is not None:
+            if hasattr(self, 'scheduler'):
                 nu.sl.sav_net_state(self.net,self.state_path,
                              self.vary_title,optimizer=self.optimizer,loss=self.loss,scheduler=self.scheduler)
             else:
@@ -612,3 +690,17 @@ class GeneralTemplate():
         self.sav_paras = False
         self.sav_state = False
         self.sav_checkpoint = False
+
+    def _load_cp_params(self):
+        setattr(self, "dirname", self.checkpoint['dirname'])
+        setattr(self, "remark", self.checkpoint['remark'])
+        setattr(self, "match_name", self.checkpoint['match_name'])
+        setattr(self, "suptitle", self.checkpoint['suptitle'])
+        setattr(self, "vary_title", self.checkpoint['vary_title'])
+
+        setattr(self, "variable_name", self.checkpoint.get('variable_name', None))
+        setattr(self, "vary_list", self.checkpoint.get('vary_list', None))
+        setattr(self, "cur_vari_index", self.checkpoint.get('cur_vari_index', None))
+        setattr(self, "variable_name2", self.checkpoint.get('variable_name2', None))
+        setattr(self, "vary_list2", self.checkpoint.get('vary_list2', None))
+        setattr(self, "cur_vari_index2", self.checkpoint.get('cur_vari_index2', None))

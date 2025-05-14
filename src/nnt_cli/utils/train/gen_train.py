@@ -19,7 +19,10 @@ def train_funct(
     quant_tensor=False,
     checkpoint_path=None,
     mid_results=None,
-    checkpoint_sav_period=5
+    checkpoint_sav_period=5,
+    cp_num=2,
+    checkpoint=None,
+    cp_add_sav_dict=None,
 ):
     
     """
@@ -28,31 +31,43 @@ def train_funct(
     Args:
         quant_tensor (bool):
             Whether to transform network output from quant tensor of brevitas to int tensor, before calculating loss.
+        checkpoint_path (str, optional): Path to save the checkpoint during training. If it is None, there will be no saving of checkpoint.
+        mid_results (list, optional): **Abandon!!!**
+        checkpoint_sav_period (int): Period for saving checkpoints.
+        cp_num (int): Number of checkpoints to keep. If it is 2, the last two checkpoints will be kept.
+        checkpoint (dict): Loaded checkpoint as a dictionary.
+  
     """
 
-    if mid_results is None:
+    if mid_results is not None:
+        print("Warning! You are using an old version of loading checkpoint."
+        "This is not supported anymore. Please use the new way of loading checkpoint.")
+
+    if checkpoint is None:
         train_l_list=[]
         train_acc_list=[]
         infer_acc_list=[]
         test_acc_list=[]
-        epoch_range=range(num_epochs)
+        loss_fn=loss
     else:
-        if len(mid_results) != 5:
-            raise ValueError("Wrong input length of mid_results!")
-        
-        last_epoch_num=mid_results[0]
-        train_l_list=mid_results[1]
-        train_acc_list=mid_results[2]
-        test_acc_list=mid_results[3]
-        infer_acc_list=mid_results[4]
-        if last_epoch_num < num_epochs:
-            epoch_range=range(last_epoch_num+1,num_epochs)
-        else:
-            raise ValueError("The epoch loaded from checkpoint is not smaller than the num_epoch settings.")
+        train_l_list=checkpoint["train_l_list"]
+        train_acc_list=checkpoint["train_acc_list"]
+        infer_acc_list=checkpoint["infer_acc_list"]
+        test_acc_list=checkpoint["test_acc_list"]
+        cur_epoch=checkpoint["epoch"]
+        num_epochs=checkpoint.get("num_epochs",num_epochs)
+        num_epochs=num_epochs-cur_epoch-1
+        loss_fn=checkpoint["loss"]
+
+        if num_epochs<=0:
+            print("Warning! The number of epochs is less than or equal to 0. Please check your checkpoint file" \
+            "and the number of epochs you set.")
+            return [train_l_list, train_acc_list, test_acc_list, infer_acc_list]
+
+    epoch_range=range(num_epochs)
 
 
-
-    for epoch in range(num_epochs):
+    for epoch in epoch_range:
         train_l_sum, train_acc_sum, n = 0.0, 0.0, 0
 
         net.train()
@@ -114,10 +129,20 @@ def train_funct(
             infer_acc=0
             infer_acc_list.append(infer_acc)    # For plot
 
-        if checkpoint_path is not None and epoch % checkpoint_sav_period == 0:
-            # For now the supported amount of optimizer is one.
-            save_checkpoint(net,optimizer,epoch,loss,train_l_list,train_acc_list,test_acc_list,infer_acc_list,checkpoint_path)
-
+        if (checkpoint_path is not None and epoch+1 % checkpoint_sav_period == 0) or last_epoch is True:
+                save_checkpoint(
+                    net,
+                    optimizer,
+                    epoch,
+                    loss_fn,
+                    train_l_list,
+                    train_acc_list,
+                    test_acc_list,
+                    infer_acc_list,
+                    checkpoint_path,
+                    cp_retain=cp_num,
+                    add_dict=cp_add_sav_dict,
+                )
         
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_l_sum / n:.4f}, Train Acc: {train_acc_sum / n:.3f}, Test Acc: {test_acc:.3f}, Infer Acc: {infer_acc:.3f}")
 

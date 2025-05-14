@@ -222,7 +222,7 @@ class _Project_Template(GeneralTemplate):
             self.results=nu.train.snn_train.train_snn(self.net,self.train_loader,self.test_loader,self.loss,self.num_epochs,self.optimizer,
                                     num_steps,infer_loader=self.infer_loader, SF_funct=True, in2spk=False, 
                                     forward=True, eve_in=True,device=self.device,debug_mode=self.debug_mode,
-                                    checkpoint_path=self.checkpoint_path,mid_results=self.cp_mid_results)
+                                    checkpoint_path=self.checkpoint_path,checkpoint=self.checkpoint)
         else:
             self.results=nu.train.snn_train.train_snn(self.net,self.train_loader,self.test_loader,self.loss,self.num_epochs,self.optimizer,
                                     num_steps,infer_loader=self.infer_loader, SF_funct=True, in2spk=False, 

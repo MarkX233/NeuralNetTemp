@@ -18,7 +18,6 @@ def store_record(record, filename, one_time=False, path="./rec",HPID_en=True):
     Args:
         record (dict | list):
             If `one_time` is false, it is dict of results:
-
             Example::
 
                 record[f"{hparams['suptitle']}: {x}"]={
@@ -568,6 +567,17 @@ def load_net_state(net, path, optimizer=False, loss=False):
     print("All parameters are loaded.")
 
 
+CHECKPOINT_VERSION = 0.2
+"""
+Checkpoint version 0.2
+- Added saving additional dict in checkpoint, for resuming iteration running.
+
+Checkpoint version: 0.1
+- Added checkpoint version control.
+- Added saving `num_epochs`, initial number of epochs to run.
+
+"""
+
 def save_checkpoint(
     model,
     optimizer,
@@ -580,10 +590,30 @@ def save_checkpoint(
     path="./checkpoint",
     scheduler=None,
     cp_retain=2, #  number of checkpoints to retain
-
+    num_epochs=None,
+    add_dict=None
 ):
+    """
+    Save the model checkpoint.
+    Args:
+        model (torch.nn.Module): The model to save.
+        optimizer (torch.optim.Optimizer): The optimizer to save.
+        epoch (int): The current epoch number.
+        loss (float): The current loss value.
+        train_l_list (list): List of training losses.
+        train_acc_list (list): List of training accuracies.
+        test_acc_list (list): List of testing accuracies.
+        infer_acc_list (list): List of inference accuracies.
+        path (str, optional): Directory to save the checkpoint. Defaults to "./checkpoint".
+        scheduler (torch.optim.lr_scheduler, optional): The learning rate scheduler to save. Defaults to None.
+        cp_retain (int, optional): Number of checkpoints to retain. Defaults to 2.
+        add_dict (dict, optional): Additional dictionary to save in the checkpoint. Defaults to None.
+    """
+
     checkpoint = {
+        'checkpoint_version': CHECKPOINT_VERSION,
         'epoch': epoch,
+        'num_epochs' : num_epochs,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss,
@@ -593,11 +623,14 @@ def save_checkpoint(
         'infer_acc_list': infer_acc_list
     }
 
+    if add_dict is not None:
+        checkpoint.update(add_dict)
+        # Add additional dict to checkpoint
+
     if scheduler is not None:
         checkpoint["scheduler_state"]=scheduler.state_dict()
 
     
-
     os.makedirs(path, exist_ok=True)
 
     torch.save(checkpoint, f"{path}/checkpoint_{epoch}.pth")
@@ -613,26 +646,88 @@ def save_checkpoint(
         # Delete the oldest file
 
 
-def load_checkpoint(model, optimizer, fpath="checkpoint.pth", scheduler=None):
-    checkpoint = torch.load(fpath)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+# def load_checkpoint(model, optimizer, fpath="checkpoint.pth", scheduler=None):
+#     checkpoint = torch.load(fpath)
+#     model.load_state_dict(checkpoint['model_state_dict'])
+#     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+#     scheduler_state = checkpoint.get("scheduler_state", None)
+
+#     if scheduler_state is not None and scheduler is not None:
+#         scheduler.load_state_dict(scheduler_state)
+#     else:
+#         print("Can't find scheduler_state.")
+
+#     epoch = checkpoint['epoch']
+#     loss = checkpoint['loss']
+#     train_l_list = checkpoint.get('train_l_list', [])
+#     train_acc_list = checkpoint.get('train_acc_list', [])
+#     test_acc_list = checkpoint.get('test_acc_list', [])
+#     infer_acc_list = checkpoint.get('infer_acc_list', [])
+
+    
+    
+#     print(f"Checkpoint loaded from epoch {epoch}")
+#     return loss, [epoch, train_l_list, train_acc_list, test_acc_list, infer_acc_list]
+
+def load_checkpoint(fpath, model=None, optimizer=None, scheduler=None, device='cpu'):
+    """
+    Load a checkpoint from a file. And update the state dict of model, optimizer and scheduler.
+    Args:
+        fpath (str): Path to the checkpoint file.
+        model (torch.nn.Module, optional): Model to load the state dict into. Defaults to None.
+        optimizer (torch.optim.Optimizer, optional): Optimizer to load the state dict into. Defaults to None.
+        scheduler (torch.optim.lr_scheduler, optional): Scheduler to load the state dict into. Defaults to None.
+    Returns:
+        checkpoint (dict): The loaded checkpoint.
+    """
+    checkpoint = torch.load(fpath,map_location=device)
+    if model is None:
+        model = model.to(device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        # for param in model.parameters():
+        #     param = param.to(device)
+
+        for module in model.modules():
+            move_module_tensors_to_device(module, device)
+    
+    if optimizer is not None:
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        for param_group in optimizer.param_groups:
+            for key in param_group:
+                if isinstance(param_group[key], torch.Tensor):
+                    param_group[key] = param_group[key].to(device)
+        for state in optimizer.state.values():
+            for key, value in state.items():
+                if isinstance(value, torch.Tensor):
+                    state[key] = value.to(device)
 
     scheduler_state = checkpoint.get("scheduler_state", None)
 
     if scheduler_state is not None and scheduler is not None:
         scheduler.load_state_dict(scheduler_state)
-    else:
+        for key, value in scheduler.__dict__.items():
+            if isinstance(value, torch.Tensor):
+                setattr(scheduler, key, value.to(device))
+    elif scheduler_state is None:
         print("Can't find scheduler_state.")
 
-    epoch = checkpoint['epoch']
-    loss = checkpoint['loss']
-    train_l_list = checkpoint.get('train_l_list', [])
-    train_acc_list = checkpoint.get('train_acc_list', [])
-    test_acc_list = checkpoint.get('test_acc_list', [])
-    infer_acc_list = checkpoint.get('infer_acc_list', [])
+    print(f"Checkpoint loaded from {fpath}")
 
+    cp_version = checkpoint.get('checkpoint_version',None)
+    print(f"Checkpoint version: {cp_version}")
+    if cp_version is None:
+        print("Warning! Checkpoint version is None. Checkpoint file could be an initial old version." \
+        "Or it is not a checkpoint file.")
+    elif cp_version < CHECKPOINT_VERSION:
+        print("Warning! Checkpoint version is lower than current version. ")
+    elif cp_version > CHECKPOINT_VERSION:
+        print("Warning! Checkpoint version is higher than current version. Maybe you should update your code.")
     
-    
-    print(f"Checkpoint loaded from epoch {epoch}")
-    return loss, [epoch, train_l_list, train_acc_list, test_acc_list, infer_acc_list]
+    return checkpoint
+
+
+def move_module_tensors_to_device(module, device):
+    for name, value in vars(module).items():
+        if isinstance(value, torch.Tensor):
+            setattr(module, name, value.to(device))
