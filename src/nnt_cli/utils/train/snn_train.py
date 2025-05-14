@@ -249,12 +249,20 @@ def train_snn(
             infer_acc=0
             infer_acc_list.append(infer_acc)    # For plot
 
-        if (checkpoint_path is not None and epoch+1 % checkpoint_sav_period == 0) or flag_last_epoch is True:
+        if checkpoint is not None:
+            ck_true_epoch=epoch+1+cur_epoch
+            ck_num_epochs=checkpoint.get("num_epochs",None)
+        else:
+            ck_true_epoch=epoch+1
+            ck_num_epochs=num_epochs
+
+
+        if (checkpoint_path is not None and ck_true_epoch % checkpoint_sav_period == 0) or flag_last_epoch is True:
             if scheduler is not None:
                 save_checkpoint(
                     net,
                     optimizer,
-                    epoch,
+                    ck_true_epoch,
                     loss_fn,
                     train_l_list,
                     train_acc_list,
@@ -264,13 +272,14 @@ def train_snn(
                     scheduler=scheduler,
                     cp_retain=cp_num,
                     add_dict=cp_add_sav_dict,
+                    num_epochs=ck_num_epochs,
                 )
             # For now the supported amount of optimizer is one.
             else:
                 save_checkpoint(
                     net,
                     optimizer,
-                    epoch,
+                    ck_true_epoch,
                     loss_fn,
                     train_l_list,
                     train_acc_list,
@@ -279,6 +288,7 @@ def train_snn(
                     checkpoint_path,
                     cp_retain=cp_num,
                     add_dict=cp_add_sav_dict,
+                    num_epochs=ck_num_epochs,
                 )
 
         if debug_mode is True:

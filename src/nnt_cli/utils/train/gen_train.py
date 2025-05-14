@@ -91,7 +91,7 @@ def train_funct(
             else:
                 y_hat_int=y_hat
             
-            l = loss(y_hat_int, y).to(device)  # .sum(), input is a list or array
+            l = loss_fn(y_hat_int, y).to(device)  # .sum(), input is a list or array
 
             l.backward()
 
@@ -129,11 +129,18 @@ def train_funct(
             infer_acc=0
             infer_acc_list.append(infer_acc)    # For plot
 
-        if (checkpoint_path is not None and epoch+1 % checkpoint_sav_period == 0) or last_epoch is True:
+        if checkpoint is not None:
+            ck_true_epoch=epoch+1+cur_epoch
+            ck_num_epochs=checkpoint.get("num_epochs",None)
+        else:
+            ck_true_epoch=epoch+1
+            ck_num_epochs=num_epochs
+
+        if (checkpoint_path is not None and ck_true_epoch % checkpoint_sav_period == 0) or last_epoch is True:
                 save_checkpoint(
                     net,
                     optimizer,
-                    epoch,
+                    epoch+1,
                     loss_fn,
                     train_l_list,
                     train_acc_list,
@@ -142,6 +149,7 @@ def train_funct(
                     checkpoint_path,
                     cp_retain=cp_num,
                     add_dict=cp_add_sav_dict,
+                    num_epochs=ck_num_epochs,
                 )
         
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_l_sum / n:.4f}, Train Acc: {train_acc_sum / n:.3f}, Test Acc: {test_acc:.3f}, Infer Acc: {infer_acc:.3f}")

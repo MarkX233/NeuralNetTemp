@@ -554,7 +554,7 @@ class GeneralTemplate():
         torch.cuda.manual_seed_all(seed)
 
         # # This flag only allows cudnn algorithms that are determinestic unlike .benchmark
-        # torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.deterministic = True
 
         # #this flag enables cudnn for some operations such as conv layers and RNNs, 
         # # which can yield a significant speedup.

@@ -1,5 +1,7 @@
 import os
+import random
 import re
+import numpy as np
 import torch
 import pandas as pd
 from json.decoder import JSONDecodeError
@@ -567,8 +569,11 @@ def load_net_state(net, path, optimizer=False, loss=False):
     print("All parameters are loaded.")
 
 
-CHECKPOINT_VERSION = 0.2
+CHECKPOINT_VERSION = 0.3
 """
+Checkpoint version 0.3
+- Added saving random state of numpy, python, torch and cuda.
+
 Checkpoint version 0.2
 - Added saving additional dict in checkpoint, for resuming iteration running.
 
@@ -620,7 +625,11 @@ def save_checkpoint(
         'train_l_list': train_l_list,
         'train_acc_list': train_acc_list,
         'test_acc_list': test_acc_list,
-        'infer_acc_list': infer_acc_list
+        'infer_acc_list': infer_acc_list,
+        'random_state': torch.get_rng_state(),
+        'cuda_random_state': torch.cuda.get_rng_state_all(),
+        'python_random_state': random.getstate(),
+        'numpy_random_state': np.random.get_state(),
     }
 
     if add_dict is not None:
@@ -644,31 +653,7 @@ def save_checkpoint(
     if len(checkpoint_files) > cp_retain:
         os.remove(os.path.join(path, checkpoint_files[0]))
         # Delete the oldest file
-
-
-# def load_checkpoint(model, optimizer, fpath="checkpoint.pth", scheduler=None):
-#     checkpoint = torch.load(fpath)
-#     model.load_state_dict(checkpoint['model_state_dict'])
-#     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-
-#     scheduler_state = checkpoint.get("scheduler_state", None)
-
-#     if scheduler_state is not None and scheduler is not None:
-#         scheduler.load_state_dict(scheduler_state)
-#     else:
-#         print("Can't find scheduler_state.")
-
-#     epoch = checkpoint['epoch']
-#     loss = checkpoint['loss']
-#     train_l_list = checkpoint.get('train_l_list', [])
-#     train_acc_list = checkpoint.get('train_acc_list', [])
-#     test_acc_list = checkpoint.get('test_acc_list', [])
-#     infer_acc_list = checkpoint.get('infer_acc_list', [])
-
     
-    
-#     print(f"Checkpoint loaded from epoch {epoch}")
-#     return loss, [epoch, train_l_list, train_acc_list, test_acc_list, infer_acc_list]
 
 def load_checkpoint(fpath, model=None, optimizer=None, scheduler=None, device='cpu'):
     """
@@ -682,7 +667,7 @@ def load_checkpoint(fpath, model=None, optimizer=None, scheduler=None, device='c
         checkpoint (dict): The loaded checkpoint.
     """
     checkpoint = torch.load(fpath,map_location=device)
-    if model is None:
+    if model is not None:
         model = model.to(device)
         model.load_state_dict(checkpoint['model_state_dict'])
         # for param in model.parameters():
@@ -709,8 +694,9 @@ def load_checkpoint(fpath, model=None, optimizer=None, scheduler=None, device='c
         for key, value in scheduler.__dict__.items():
             if isinstance(value, torch.Tensor):
                 setattr(scheduler, key, value.to(device))
+        
     elif scheduler_state is None:
-        print("Can't find scheduler_state.")
+        print("Can't find scheduler state.")
 
     print(f"Checkpoint loaded from {fpath}")
 
@@ -723,6 +709,17 @@ def load_checkpoint(fpath, model=None, optimizer=None, scheduler=None, device='c
         print("Warning! Checkpoint version is lower than current version. ")
     elif cp_version > CHECKPOINT_VERSION:
         print("Warning! Checkpoint version is higher than current version. Maybe you should update your code.")
+    
+    # Load random state
+    if 'random_state' in checkpoint:
+        torch.set_rng_state(checkpoint['random_state'])
+    if 'cuda_random_state' in checkpoint:
+        torch.cuda.set_rng_state_all(checkpoint['cuda_random_state'])
+    if 'python_random_state' in checkpoint:
+        random.setstate(checkpoint['python_random_state'])
+    if 'numpy_random_state' in checkpoint:
+        np.random.set_state(checkpoint['numpy_random_state'])
+
     
     return checkpoint
 
