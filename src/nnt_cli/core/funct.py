@@ -289,5 +289,14 @@ def opt_command(args):
 
         runner = OptTaskRunner_static(tasks, args.kernel, output2terminal=args.output, logfile=args.log)
 
+def gen_init_command(args):
+    """Generate __init__.py file for the current directory"""
+    pkg_dir = Path(args.dir).resolve()
+    if not pkg_dir.exists():
+        raise FileNotFoundError(f"Path '{pkg_dir}' does not exist.")
+    if not pkg_dir.is_dir():
+        raise NotADirectoryError(f"'{pkg_dir}' is not a directory.")
+
+    generate_package_init(pkg_dir, recursive=args.recursive, echo=True)
 
 

@@ -39,13 +39,13 @@ class DynamicAssignTaskOnGPU():
     def get_args(self):
         parser = argparse.ArgumentParser(description="A script dynamically assigns notebook running on idle GPU.")
 
-        parser.add_argument("--o2t", type=bool, default=True, help="Enable or disable notebook output display in terminal.")
-        parser.add_argument("--kernel", type=str, default=None, help="Determine the running kernel.")
+        parser.add_argument("-no","--no_output", action='store_true', help="Disable notebook output display in terminal.")
+        parser.add_argument("-k","--kernel", type=str, default=None, help="Determine the running kernel.")
         # GPU under these 2 threshold will be considered as idle.
-        parser.add_argument("--utilt", type=int, default=5, help="GPU utilization threshold (default: 5%%).")
-        parser.add_argument("--memt", type=int, default=30, help="GPU memory usage threshold (default: 30%%).")
-        parser.add_argument("--stanum", type=int, default=1, help="Start number to name the file (default: 1).")
-        parser.add_argument("--log", type=bool, default=True, help="Enable or disable notebook output log file.")
+        parser.add_argument("-u","--utilt", type=int, default=5, help="GPU utilization threshold (default: 5%%).")
+        parser.add_argument("-m","--memt", type=int, default=30, help="GPU memory usage threshold (default: 30%%).")
+        parser.add_argument("-sn","--stanum", type=int, default=1, help="Start number to name the file (default: 1).")
+        parser.add_argument("-nl","--no_log", action='store_true', help="Disable notebook output log file.")
 
         try:
             args = parser.parse_args()
@@ -55,11 +55,11 @@ class DynamicAssignTaskOnGPU():
             sys.exit()
 
         self.kernel=args.kernel
-        self.output2terminal=args.o2t
+        self.output2terminal=not args.no_output
         self.util_threshold = args.utilt
         self.memory_threshold = args.memt / 100
         self.start_num=args.stanum
-        self.log=args.log
+        self.log=not args.no_log
 
     def execute_task(self,notebook, gpu_id, params, task_count,event):
         start_time = time.time()

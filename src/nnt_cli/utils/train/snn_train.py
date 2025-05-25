@@ -257,7 +257,7 @@ def train_snn(
             ck_num_epochs=num_epochs
 
 
-        if (checkpoint_path is not None and ck_true_epoch % checkpoint_sav_period == 0) or flag_last_epoch is True:
+        if checkpoint_path is not None and (ck_true_epoch % checkpoint_sav_period == 0 or flag_last_epoch is True):
             if scheduler is not None:
                 save_checkpoint(
                     net,

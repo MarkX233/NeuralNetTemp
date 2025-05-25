@@ -136,7 +136,7 @@ def train_funct(
             ck_true_epoch=epoch+1
             ck_num_epochs=num_epochs
 
-        if (checkpoint_path is not None and ck_true_epoch % checkpoint_sav_period == 0) or last_epoch is True:
+        if checkpoint_path is not None and (ck_true_epoch % checkpoint_sav_period == 0 or last_epoch is True):
                 save_checkpoint(
                     net,
                     optimizer,

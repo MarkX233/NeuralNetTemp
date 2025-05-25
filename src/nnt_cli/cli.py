@@ -2,7 +2,7 @@ import argparse
 
 
 from nnt_cli.core.funct import save_files, del_files, list_files, copy_files, \
-    create_project, export_custom, import_custom, git_proxy, sync_command, opt_command
+    create_project, export_custom, import_custom, git_proxy, sync_command, opt_command, gen_init_command
 
 def main():
 
@@ -106,6 +106,13 @@ def main():
     opt_parser.add_argument('-nl', "--no_log", action="store_false", help="Disable output info to log file.")
     opt_parser.add_argument('-s', "--static", type=str, default=None, help="Indicate static GPU to perform the optimization. e.g. [0,1,2] means use GPU 0,1,2 to perform the optimization.")
     opt_parser.set_defaults(func=opt_command)
+
+    gen_init_parser = subparsers.add_parser('gi', help='Automatically generate __init__.py file for the current directory')
+    gen_init_parser.add_argument('-d', '--dir', default='.', help='Directory to generate __init__.py file, default is current directory.')
+    gen_init_parser.add_argument('-r', '--recursive', action='store_true',
+                                help='Recursively generate __init__.py file for all subdirectories.')
+    gen_init_parser.set_defaults(func=gen_init_command)
+    
     
     args = parser.parse_args()
     if hasattr(args, 'func'):

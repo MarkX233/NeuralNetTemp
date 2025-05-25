@@ -17,7 +17,7 @@ from nnt_cli.utils.parallel_run.parallel_run_dyn import DynamicAssignTaskOnGPU
 class DynTaskRunner__Project_(DynamicAssignTaskOnGPU):
     def set_task(self):
 
-        self.notebooks_task = [
+        self.notebooks_tasks = [
             # ("file_name.ipynb", {parameters settings in dictionary form}),
             # Examples:
             # ("L4_no_re.ipynb", {"script_mode": True, "train_method" : "one", "num_hiddens" : 512, "num_epochs" : 100, "bit_width" : [8,4,2,1],"match_name":"L4_mixed_bit_width_"}),

@@ -403,6 +403,7 @@ def sav_lin_net_paras(
     Using pandas.DataFrame, the parameters can be saved as .csv file.
 
     If using `learn_beta` and `learn_threshold`, the parameters will be saved as separate files.
+
     """
 
     lin = 0
@@ -451,11 +452,14 @@ def sav_lin_net_paras(
         
         if isinstance(layer, qnn.QuantLinear):
             layer_dict[f"QuantLinear{lin}_weight"] = (
-                float_quant_tensor2int(layer.quant_weight()).flatten().detach().cpu().tolist()
+                float_quant_tensor2int(layer.quant_weight(),int_datatype='int',round=True).flatten().detach().cpu().tolist()
+                # You can also use other float2int functions form brevitas, such as:
+                # float_quant_tensor2int2(layer.quant_weight()).flatten().detach().cpu().tolist()
+                # float_quant_tensor2int3(layer.quant_weight()).flatten().detach().cpu().tolist()
             )
             if layer.bias is not None:
                 layer_dict[f"QuantLinear{lin}_bias"] = (
-                    float_quant_tensor2int(layer.quant_bias()).flatten().detach().cpu().tolist()
+                    float_quant_tensor2int(layer.quant_bias(),int_datatype='int',round=True).flatten().detach().cpu().tolist()
                 )
             # Normally when using QuantLinear, there will be no Linear Layer.
             lin = lin+1
@@ -728,3 +732,26 @@ def move_module_tensors_to_device(module, device):
     for name, value in vars(module).items():
         if isinstance(value, torch.Tensor):
             setattr(module, name, value.to(device))
+
+def load_csv_params(fpath):
+    """
+    Load csv params file.
+    """
+    try:
+        df = pd.read_csv(fpath, header=None)
+        data = df[0].tolist()
+        return data
+    except FileNotFoundError:
+        print(f"File {fpath} not found.")
+        return None
+
+def sav_csv_params(data, fpath):
+    """
+    Save params to csv file.
+    """
+    try:
+        df = pd.DataFrame(data)
+        df.to_csv(fpath, index=False, header=False)
+        print(f"Data saved to {fpath}")
+    except Exception as e:
+        print(f"Error saving data to {fpath}: {e}")

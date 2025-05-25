@@ -26,7 +26,7 @@ def plot_acc(
         xlabel="Epoch"
 
     fig = plt.figure(figsize=(10, 7))
-        
+
     loss_ylabel="Loss"
     acc_ylabel="Accuracy"
 
@@ -90,22 +90,51 @@ def plot_acc(
 
 
 def plot_xy(
-    x, y, xlabel=None, ylabel=None, title=None, save=None, figsize=(10, 5), show=False
+    x,
+    y,
+    xlabel=None,
+    ylabel=None,
+    title=None,
+    save=None,
+    figsize=(10, 5),
+    show=False,
+    x_custom_axis=None,
+    sort_y=False,
 ):
-    
+
     x_np=np.array(x)
     y_np=np.array(y)
 
-    # Sort by x-values
-    sorted_indices = np.argsort(x_np)
-    x_sorted = x_np[sorted_indices]
-    y_sorted = y_np[sorted_indices]
+    if x_custom_axis is not None:
+        if len(y) != len(x_custom_axis):
+            raise ValueError("The length of y and x_custom_axis is not the same."
+            "Check your input.")
+        
+        x_sorted = range(len(x_custom_axis))
+        if sort_y is True:
+            sorted_indices = np.argsort(y_np)
+            x_cus_np=np.array(x_custom_axis)
+            y_sorted = y_np[sorted_indices]
+            x_cus_sroted= x_cus_np[sorted_indices]
+        else:
+            y_sorted = y_np
+            x_cus_sroted = x_custom_axis
+        plt.xticks(x_sorted, x_cus_sroted)
+    else:
+        # Sort by x-values
+        if sort_y is True:
+            sorted_indices = np.argsort(y_np)
+        else:
+            sorted_indices = np.argsort(x_np)
+        x_sorted = x_np[sorted_indices]
+        y_sorted = y_np[sorted_indices]
 
     set_figsize(figsize)
     plt.plot(x_sorted, y_sorted)
     plt.xlabel(xlabel, fontsize=10)
     plt.ylabel(ylabel, fontsize=10)
     plt.title(title, fontsize=12)
+
     if show is True:
         plt.show()
     if save is not None:
