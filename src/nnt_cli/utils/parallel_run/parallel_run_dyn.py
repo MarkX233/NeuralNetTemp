@@ -18,9 +18,11 @@ class DynamicAssignTaskOnGPU():
         Before running, please inherit this class and override the `set_task` method.
         Then call the newly written class.
         """
+        self.save_to_target = False
+        self.cwd = os.getcwd()
         self.get_args()
         self.set_task()
-        get_notebook_name("./",raise_error=False,sub_dir=True)
+        get_notebook_name("./",raise_error=False,sub_dir=True) # To start the kernel
         self.assign_and_exe()
 
     def set_task(self):
@@ -30,11 +32,26 @@ class DynamicAssignTaskOnGPU():
             - parameters (dict): A dictionary of parameters to pass to the notebook.
                                 The parameters need to be first set in the certain cell with `parameters` tag in the notebook.
         """
+        # self.save_to_target = False
+
         self.notebooks_tasks = [
             ("L2.ipynb", {"para_mode": True, "num_epochs" : 5}),
             ("L3.ipynb", {"para_mode": True, "num_epochs" : 5}),
             ("L4.ipynb", {"para_mode": True, "num_epochs" : 5}),
         ]
+
+    # def sys_append(self):
+    #     """
+    #     Append the current directory to sys.path to ensure that the script can find the necessary modules.
+    #     """
+    #     if self.cross_dir_mode:
+    #         for file in self.notebooks_tasks:
+    #             if os.path.exists(file[0]):
+    #                 current_dir = os.path.dirname(os.path.abspath(file[0]))
+    #                 if current_dir not in sys.path:
+    #                     sys.path.append(current_dir)
+
+
     
     def get_args(self):
         parser = argparse.ArgumentParser(description="A script dynamically assigns notebook running on idle GPU.")
@@ -42,10 +59,12 @@ class DynamicAssignTaskOnGPU():
         parser.add_argument("-no","--no_output", action='store_true', help="Disable notebook output display in terminal.")
         parser.add_argument("-k","--kernel", type=str, default=None, help="Determine the running kernel.")
         # GPU under these 2 threshold will be considered as idle.
-        parser.add_argument("-u","--utilt", type=int, default=5, help="GPU utilization threshold (default: 5%%).")
-        parser.add_argument("-m","--memt", type=int, default=30, help="GPU memory usage threshold (default: 30%%).")
+        parser.add_argument("-u","--utilt", type=int, default=5, help="GPU utilization threshold (default: 5%%). The lower the value, the stricter the threshold")
+        parser.add_argument("-m","--memt", type=int, default=30, help="GPU memory usage threshold (default: 30%%). The lower the value, the stricter the threshold")
         parser.add_argument("-sn","--stanum", type=int, default=1, help="Start number to name the file (default: 1).")
         parser.add_argument("-nl","--no_log", action='store_true', help="Disable notebook output log file.")
+        parser.add_argument("-s","--static", action='store_true', help="Use static mode, which will not check GPU utilization and memory usage, but only check if the GPU is not running any task.")
+        parser.add_argument("-t","--to_target", action='store_true', help="Save the output notebook to the directory of notebook instead of the current working directory.")
 
         try:
             args = parser.parse_args()
@@ -60,23 +79,38 @@ class DynamicAssignTaskOnGPU():
         self.memory_threshold = args.memt / 100
         self.start_num=args.stanum
         self.log=not args.no_log
+        self.static_mode = args.static
+        self.save_to_target = args.to_target
 
     def execute_task(self,notebook, gpu_id, params, task_count,event):
+        
         start_time = time.time()
 
         time.sleep(5)
 
-        notebook_name = notebook.split(".")[0]
+        notebook_dir = os.path.dirname(os.path.abspath(notebook))
 
-        output_dir = f"results/{notebook_name}_output"
+        # if notebook_dir not in sys.path:
+        #     sys.path.append(notebook_dir)
+
+        working_dir = notebook_dir if self.save_to_target else self.cwd
+        print(f"Working directory: {working_dir}")
+
+        notebook_name = os.path.basename(notebook)
+        notebook_name = os.path.splitext(notebook_name)[0]  # Remove the .ipynb extension
+
+        output_dir = os.path.join(working_dir, "results", f"{notebook_name}_output")
 
         if not os.path.exists(output_dir):
             os.makedirs(output_dir,exist_ok=True)
         
         output_index=get_next_demo_index(output_dir, f"{notebook_name}", ".ipynb", strict=False)
-        output_notebook = f"{output_dir}/{notebook_name}_task{task_count}_{output_index}.ipynb"
+        output_notebook = os.path.join(
+            output_dir,
+            f"{notebook_name}_task{task_count}_{output_index}.ipynb"
+        )
 
-        # output_notebook = notebook.replace(".ipynb", f"_output_{task_count}.ipynb")  
+
         command = [
             "papermill",
             notebook,
@@ -95,6 +129,11 @@ class DynamicAssignTaskOnGPU():
         env = os.environ.copy()
         env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
 
+        python_path = notebook_dir
+        if "PYTHONPATH" in env:
+            python_path += os.pathsep + env["PYTHONPATH"]
+        env["PYTHONPATH"] = python_path
+
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
@@ -102,6 +141,7 @@ class DynamicAssignTaskOnGPU():
             bufsize=1,
             text=True,
             env=env, 
+            cwd=working_dir
         )
         
         time.sleep(5)   # In case that threads start together.
@@ -109,7 +149,7 @@ class DynamicAssignTaskOnGPU():
         event.set()
 
         if self.log:
-            with open(f"{notebook}_{task_count}_log.txt", "a") as logfile:
+            with open(os.path.join(working_dir, f"{notebook_name}_{task_count}_log.txt"), "a") as logfile:
                 for line in process.stdout:
                     timestamp = datetime.now().strftime("%H:%M:%S")
                     output = f"[{timestamp}][Task:{task_count}][{notebook} on GPU {gpu_id}] {line.strip()}"
@@ -123,6 +163,8 @@ class DynamicAssignTaskOnGPU():
         execution_time = end_time - start_time
         timestamp = datetime.now().strftime("%H:%M:%S")
         print(f"[{timestamp}][Task {task_count}]: {notebook} on GPU {gpu_id} completed in {execution_time:.2f} seconds")
+        if gpu_id in self.gpu_active:
+            self.gpu_active.remove(gpu_id)
 
 
     def get_gpu_status(self):
@@ -147,27 +189,32 @@ class DynamicAssignTaskOnGPU():
     def assign_and_exe(self):
         tasks = self.notebooks_tasks[:]
         threads = []
-        last_gpu=None
+        gpu_last_assign = {}  # gpu_id: last_assign_timestamp
+        self.gpu_active = []
         task_count=self.start_num-1
         # Add task number to avoid overwritten the file with same name,
         # while training the same code but with different args.
 
+        
         while tasks:
             gpu_status = self.get_gpu_status()
             # Sort by GPU utilization and allocate to idle GPUs first
             gpu_status.sort(key=lambda x: (x[1], x[2]))  # Sort by utilization and used video memory
+            # Because system and the main process run on GPU 0, so by using sorting, the tasks will be started from GPU 1.
 
             for gpu_id, utilization, memory_used, memory_total in gpu_status:
-                if utilization < self.util_threshold and memory_used < memory_total * self.memory_threshold:  # If GPU condition is below this circumstance, it'll be considered as idle.
-                    if gpu_id == last_gpu:  # To avoid that the recent assigned task haven't started.
-                        same_gpu_time=time.time()
-                        if same_gpu_time-start_time<60:
-                            time.sleep(60)
-                            # last_gpu=None
-                            break
-                        else:
-                            # last_gpu=None
-                            continue
+                task_start = gpu_id not in self.gpu_active if self.static_mode \
+                    else utilization < self.util_threshold and memory_used < memory_total * self.memory_threshold # If GPU condition is below this circumstance, it'll be considered as idle.
+
+                if task_start:  
+                    # Check if the GPU was assigned a task recently
+
+                    if gpu_id in self.gpu_active: # Double check
+                        continue
+
+                    if not self.static_mode and gpu_id in gpu_last_assign:
+                        if time.time() - gpu_last_assign[gpu_id] < 60:
+                            continue 
                     else:
                         if len(tasks) ==0:
                             timestamp = datetime.now().strftime("%H:%M:%S")
@@ -179,19 +226,20 @@ class DynamicAssignTaskOnGPU():
                         task_count+=1
                         timestamp = datetime.now().strftime("%H:%M:%S")
                         print(f"[{timestamp}][Task Manager] Task {task_count}: Assigning {notebook} to GPU {gpu_id} (Utilization: {utilization}%, Memory Used: {memory_used}/{memory_total} MB)")
-                        thread = threading.Thread(target=self.execute_task, args=(notebook, gpu_id, params, task_count, event))
+                        thread = threading.Thread(target=self.execute_task, args=(notebook, gpu_id, params, task_count, event), daemon=True)
+                        # daemon=True allows the thread to exit when the main program exits
+                        self.gpu_active.append(gpu_id)
                         thread.start()
                         event.wait()
                         threads.append(thread)
-                        if last_gpu is None:
-                            time.sleep(60)  # Initial time for papermill to start kernel at first start.
-                        last_gpu=gpu_id
-                        start_time = time.time()
-                        time.sleep(30) # Wait for the assigned task to start, which prevents the order is messed up. 
+                        gpu_last_assign[gpu_id] = time.time()
+                        time.sleep(60) # Wait for the assigned task to start, which prevents the order is messed up. 
                         continue
                 else:
                     timestamp = datetime.now().strftime("%H:%M:%S")
-                    print(f"[{timestamp}][Task Manager] Currently no GPU is available.")
+                    print(f"[{timestamp}][Task Manager] GPU {gpu_id} is busy (Utilization: {utilization}%, Memory Used: {memory_used}/{memory_total} MB). Waiting for idle GPU...")
+                    continue
+            print(f"[{timestamp}][Task Manager] Currently no GPU is available.")
             time.sleep(10) # Check interval
 
         for thread in threads:

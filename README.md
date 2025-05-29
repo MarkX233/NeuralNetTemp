@@ -4,8 +4,11 @@
 
 ## Introduction
 
+
 NeuralNetTemp, nnt stands for Neural Network Template, is a template manage system along with the templates for creating neural networks in Python. The goal of NeuralNetTemp is to provide simple and easy-to-use templates with useful utils to let one only need to focus on creating neural network model, while still allowing for a high degree of customization and flexibility.
 It is built on top of the popular [PyTorch](https://pytorch.org/) library, which provides a wide range of tools for building and training neural networks.
+
+![alt text](soft.png)
 
 ## Quick Start
 
@@ -133,6 +136,13 @@ nnt cf run_all_projects.sh
 ```
 
 to copy the `run_all_projects.sh` to the parent folder. You need to modify the task project list in the `run_all_projects.sh` file before running. Then you can simply call the `run_all_projects.sh`, and this scrip will run all the `task_script.py` in all the project folders.
+
+>Note: In version 0.4.9, the task script is updated to support run tasks that are not in the same folder as the task script. 
+For example, a task script in project A:`self.notebooks_tasks = [("../B/example.ipynb", {...}),]` \
+Therefore, you can run the task script in new folder and do some combinations of tasks, without the need to copy the code to the new folder.
+You can use `-t` or `to_target` option, or set `self.save_to_target = True` in task script, to determine whether result folder will be saved in the project folder or in the task script folder. If you use `-t` option, the result folder will be saved in the project folder, otherwise it will be saved in the task script folder. \
+You can also use `-s` or `--static` option to enable the static mode, which means the task script will not assign the task dynamically to the available GPUs depending on the threshold, but will run the task on the GPU that is not assigned to any other task. This is useful when you don't know how to set the threshold and you still want to run one task on one GPU. 
+
 
 ### Code management between works
 

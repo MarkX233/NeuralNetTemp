@@ -108,14 +108,17 @@ class Weight1bit(SignedBinaryWeightPerTensorConst):
 class Weight2bit(Int8WeightPerTensorFloat):
     weight_quant_type=QuantType.INT
     weight_bit_width=2
+    bit_width=2
 
 class Weight4bit(Int8WeightPerTensorFloat):
     weight_quant_type=QuantType.INT
     weight_bit_width=4
+    bit_width=4
 
 class Weight8bit(Int8WeightPerTensorFloat):
     weight_quant_type=QuantType.INT
     weight_bit_width=8
+    bit_width=8
 
 
 

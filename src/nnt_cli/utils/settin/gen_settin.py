@@ -71,9 +71,20 @@ def get_ipynb_files(directory,sub_dir=False):
     return ipynb_files
 
 
-def get_notebook_name(dir_path, raise_error=True,sub_dir=False):
+def get_notebook_name(dir_path, raise_error=True,sub_dir=False,get_path=False):
     """
-    Get notebook name and update in source code.
+    Get notebook name or path and update in source code.
+    This function will search for all .ipynb files in the specified directory and its subdirectories,
+    and check if the `get_notebook_name()` function is used in the code cells.
+    If it is used, it will check if the notebook name is set correctly.
+    If the notebook name is not set or incorrect, it will update the source code with the correct notebook name.
+    If `get_path` is True, it will also check if the notebook path is set correctly.
+    If `raise_error` is True, it will raise an error if any notebook name is not set or incorrect.
+    Args:
+        dir_path (str): The directory path to search for .ipynb files.
+        raise_error (bool): Whether to raise an error if any notebook name is not set or incorrect.
+        sub_dir (bool): Whether to search in subdirectories.
+        get_path (bool): Whether to check and update the notebook path as well.
     """
 
     ipynb_files=get_ipynb_files(dir_path,sub_dir=sub_dir)
@@ -112,12 +123,25 @@ def get_notebook_name(dir_path, raise_error=True,sub_dir=False):
                                 source[i + 1] = f"notebook_name='{expected_notebook}'\n"
                                 updated = True
                                 error_found = True
+                        elif i + 2 < len(source) and get_path and source[i + 2].strip().startswith("notebook_path="):
+                            notebook_path_line = source[i + 2].strip()
+                            expected_notebook_path = os.path.abspath(file_path)
+                            
+                            # Check if the result is correct
+                            if notebook_path_line == f"notebook_path='{expected_notebook_path}'":
+                                print(f"[OK] {file_path}: Notebook path is correct.")
+                            else:
+                                print(f"[UPDATE] {file_path}: Incorrect notebook path. Updating...")
+                                source[i + 2] = f"notebook_path='{expected_notebook_path}'\n"
+                                updated = True
+                                error_found = True
                         else:
                             # No results, insert notebook_name=<name>
                             print(f"[MISSING] {file_path}: Missing notebook name. Inserting...")
                             source.insert(i + 1, f"notebook_name='{os.path.basename(file_path).split('.ipynb')[0]}'\n")
                             updated = True
                             error_found = True
+                    
 
                         # Update the source of cell
                         cell["source"] = source
