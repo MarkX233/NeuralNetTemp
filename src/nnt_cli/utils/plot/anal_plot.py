@@ -275,6 +275,7 @@ def visualize_value_distribution(event_matrix, title="Value Distribution Analysi
             yscale = 'linear'
         else:
             bins = np.geomspace(max(1e-6, data_min), data_max, 50)
+            # bins = np.logspace(max(1e-6, data_min), data_max, 50)
             yscale = 'log'
         
         counts, bins, _ = ax_hist.hist(flat_values, bins=bins, 
@@ -285,7 +286,7 @@ def visualize_value_distribution(event_matrix, title="Value Distribution Analysi
         for p in percentiles:
             ax_hist.axvline(p, color='red', linestyle='--', alpha=0.7)
         
-        ax_hist.set_title(f'Value Distribution ({yscale} Scale)')
+        ax_hist.set_title(f'Value Distribution Histogram ({yscale} Scale)')
         ax_hist.set_xlabel('Values')
         ax_hist.set_ylabel('Count')
         ax_hist.set_yscale(yscale)
@@ -362,88 +363,120 @@ def visualize_value_distribution(event_matrix, title="Value Distribution Analysi
         plt.tight_layout()
         plt.show()
 
-# def visualize_event_distribution(frames, title="Event Distribution Analysis"):
-#     """
-#     Visualize event data distribution with multiple complementary plots
+def simple_value_distribution(event_matrix, title="Value Distribution Analysis", font_scale=1.0):
+    """
+    Visualize event value distribution across multiple dimensions for normalization
+    Simplize of the above one.
+    """
+    if isinstance(event_matrix, torch.Tensor):
+        event_matrix = event_matrix.numpy()
 
-#     The input is frame after tonic.transform.ToFrame.
 
-#     This function should work only ToFrame transform is used. If you use other transforms, 
-#     the results could not be accuracy.
+    original_rc = {
+        'font.size': get_rc_float('font.size'),
+        'axes.titlesize': get_rc_float('axes.titlesize'),
+        'axes.labelsize': get_rc_float('axes.labelsize'),
+        'xtick.labelsize': get_rc_float('xtick.labelsize'),
+        'ytick.labelsize': get_rc_float('ytick.labelsize'),
+        'figure.titlesize': get_rc_float('figure.titlesize')
+    }
     
-#     Args:
-#         frames (np.ndarray or Tensor): Input data of shape [Time_steps, Channels]
-#         title (str): Title for the visualization
-#     """
+    with plt.rc_context({
+        'font.size': original_rc['font.size'] * font_scale,
+        'axes.titlesize': original_rc['axes.titlesize'] * font_scale,
+        'axes.labelsize': original_rc['axes.labelsize'] * font_scale,
+        'xtick.labelsize': original_rc['xtick.labelsize'] * font_scale,
+        'ytick.labelsize': original_rc['ytick.labelsize'] * font_scale,
+        'figure.titlesize': original_rc['figure.titlesize'] * font_scale
+    }):
 
-#     if isinstance(frames, torch.Tensor):
-#         frames = frames.numpy()
 
-#     T, C = frames.shape[0], frames.shape[1]
+        T = event_matrix.shape[0]
+        if event_matrix.ndim > 2:
+            event_matrix = event_matrix.reshape(T, -1)
+        
+        C = event_matrix.shape[1]
+        flat_values = event_matrix.flatten()
+        time_coords = np.repeat(np.arange(T), C)
+        channel_coords = np.tile(np.arange(C), T)
+        
 
-#     if frames.ndim > 2:
-#         frames=frames.reshape(T, C , -1)
-    
-    
-#     # Create figure with subplots
-#     fig = plt.figure(figsize=(18, 10))
-#     fig.suptitle(title, fontsize=14)
-    
-#     # Create grid layout
-#     gs = fig.add_gridspec(3, 3)
-    
-#     # Main 2D Distribution Plot
-#     ax1 = fig.add_subplot(gs[:2, :2])
-#     # Hexbin plot for density visualization
-#     hb = ax1.hexbin(x=np.tile(np.arange(T), C),
-#                 y=np.repeat(np.arange(C), T),
-#                 C=frames.flatten(),
-#                 gridsize=50,
-#                 cmap='viridis',
-#                 bins='log',
-#                 mincnt=1)
-#     ax1.set_xlabel('Time Steps', fontsize=10)
-#     ax1.set_ylabel('Channels', fontsize=10)
-#     cb = fig.colorbar(hb, ax=ax1)
-#     cb.set_label('Log-scaled Event Count', rotation=270, labelpad=15)
+        data_min = np.min(flat_values)
+        data_max = np.max(flat_values)
+        has_negative = data_min < 0
 
-#     # Temporal Distribution (Marginal)
-#     ax2 = fig.add_subplot(gs[2, :2])
-#     time_sum = frames.sum(axis=1)
-#     ax2.plot(time_sum, color='tab:blue')
-#     ax2.fill_between(np.arange(T), time_sum, alpha=0.3)
-#     ax2.set_xlabel('Time Steps')
-#     ax2.set_ylabel('Total Events')
-#     ax2.set_title('Temporal Distribution', fontsize=10)
-    
-#     # Channel Distribution (Marginal)
-#     ax3 = fig.add_subplot(gs[:2, 2])
-#     chan_sum = frames.sum(axis=0)
-#     ax3.plot(chan_sum, np.arange(C), color='tab:orange')
-#     ax3.fill_betweenx(np.arange(C), chan_sum, alpha=0.3)
-#     ax3.set_xlabel('Total Events')
-#     ax3.set_ylabel('Channels')
-#     ax3.set_title('Channel Distribution', fontsize=10)
-    
-#     # Statistics Table
-#     ax4 = fig.add_subplot(gs[2, 2])
-#     stats = {
-#         'Total Events': frames.sum(),
-#         'Mean/Time Step': f"{frames.mean(axis=1).mean():.1f} ± {frames.mean(axis=1).std():.1f}",
-#         'Density (%)': f"{100 * np.mean(frames > 0):.2f}%",
-#         'Max Channel': f"Ch{np.argmax(chan_sum)} ({np.max(chan_sum)})",
-#         'Peak Time': f"T{np.argmax(time_sum)} ({np.max(time_sum)})"
-#     }
-#     ax4.table(cellText=[[v] for v in stats.values()],
-#             rowLabels=list(stats.keys()),
-#             loc='center',
-#             cellLoc='left',
-#             bbox=[0.1, 0.2, 0.8, 0.6])
-#     ax4.axis('off')
 
-#     plt.tight_layout()
-#     plt.show()
+        fig = plt.figure(figsize=(18, 12))
+        gs = GridSpec(2, 2, figure=fig, 
+                      width_ratios=[1, 2], 
+                      height_ratios=[1, 1.5]) 
+        fig.suptitle(title, fontsize=14 * font_scale)
 
+
+        ax_hist = fig.add_subplot(gs[0, 0])
+        # if has_negative:
+        #     bins = np.linspace(data_min, data_max, 50)
+        #     yscale = 'linear'
+        # else:
+        #     bins = np.geomspace(max(1e-6, data_min), data_max, 50)
+        #     # bins = np.logspace(max(1e-6, data_min), data_max, 50)
+        #     yscale = 'log'
+
+        bins = np.linspace(data_min, data_max, 50)
+        yscale = 'linear'
+        
+        counts, bins, _ = ax_hist.hist(flat_values, bins=bins, 
+                                    color='skyblue', edgecolor='navy')
+        
+
+        percentiles = np.percentile(flat_values, [25, 50, 75, 95, 99])
+        for p in percentiles:
+            ax_hist.axvline(p, color='red', linestyle='--', alpha=0.7)
+        
+        ax_hist.set_title(f'Value Distribution Histogram ({yscale} Scale)')
+        ax_hist.set_xlabel('Values')
+        ax_hist.set_ylabel('Count')
+        ax_hist.set_yscale(yscale)
+        ax_hist.grid(True, alpha=0.3)
+
+
+        ax_time = fig.add_subplot(gs[0, 1])
+        cmap = 'coolwarm' if has_negative else 'viridis'
+        sc = ax_time.scatter(time_coords, flat_values, c=channel_coords,
+                            cmap=cmap, alpha=0.3, s=5, 
+                            vmin=0, vmax=C-1)
+        plt.colorbar(sc, ax=ax_time, label='Channel ID')
+        ax_time.set_title('Temporal Distribution')
+        ax_time.set_xlabel('Time Steps')
+        ax_time.set_ylabel('Values')
+        ax_time.grid(True, alpha=0.3)
+
+        ax_hex = fig.add_subplot(gs[1, :]) 
+        
+        gridsize_x = 50
+        gridsize_y = min(50, C)
+        
+        hex_bins = 'log'
+        if has_negative or (data_max - data_min < 1e-6):
+            hex_bins = 50  
+            
+        hb = ax_hex.hexbin(
+            x=flat_values,
+            y=channel_coords,
+            gridsize=(gridsize_x, gridsize_y),
+            cmap='coolwarm' if has_negative else 'plasma',
+            bins=hex_bins,
+            mincnt=1,
+            extent=(data_min, data_max, 0, C-1)
+        )
+        plt.colorbar(hb, ax=ax_hex, label='Density')
+        ax_hex.set_title('Value-Channel Density Map')
+        ax_hex.set_xlabel('Values')
+        ax_hex.set_ylabel('Channel ID')
+        ax_hex.grid(True, alpha=0.3)
+
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        plt.show()
 
 def plot_time_step_distribution(dataset, title="Time Steps Distribution", font_scale=1.0):
     """

@@ -1,8 +1,8 @@
 import argparse
 
+from nnt_cli.core.funct import save_files, del_files, list_files, copy_files, opt_command,\
+    create_project, export_custom, import_custom, git_proxy, sync_command, gen_init_command
 
-from nnt_cli.core.funct import save_files, del_files, list_files, copy_files, \
-    create_project, export_custom, import_custom, git_proxy, sync_command, opt_command, gen_init_command
 
 def main():
 
@@ -111,6 +111,10 @@ def main():
     gen_init_parser.add_argument('-d', '--dir', default='.', help='Directory to generate __init__.py file, default is current directory.')
     gen_init_parser.add_argument('-r', '--recursive', action='store_true',
                                 help='Recursively generate __init__.py file for all subdirectories.')
+    gen_init_parser.add_argument('-m', '--mode', default='direct', help='The mode of how to generate __init__.py.\n' \
+                                                                    'mode: `direct`: from . import modules/packages\n' \
+                                                                    '      `all`: __all__ = [modules/packages]\n' \
+                                                                    '      `lazy`: lazy import using importlib and __getattr__\n')
     gen_init_parser.set_defaults(func=gen_init_command)
     
     

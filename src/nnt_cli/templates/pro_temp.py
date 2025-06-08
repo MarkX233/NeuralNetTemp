@@ -102,8 +102,10 @@ class _Project_Template(GeneralTemplate):
         else:
             raise ValueError("with_cache must be one of '2stage', 'Full', 'False'")
         
-        if self.optuna_flag is True: # for optuna, optional
+        if self.vali_fr_train is True:
             self.train_dataset, self.val_dataset = random_split(self.train_dataset, [1-self.val_size, self.val_size])
+        else:
+            self.val_dataset = self.test_dataset
         
         if self.quick_debug is True:
                 # For quick debug
@@ -212,22 +214,19 @@ class _Project_Template(GeneralTemplate):
         """
         num_steps = 0
         # Not used
-        if self.optuna_flag is True:
-            # Use val_loader for optuna
+
+        if self.load_cp_flag:
             self.results=nu.train.snn_train.train_snn(self.net,self.train_loader,self.val_loader,self.loss,self.num_epochs,self.optimizer,
-                                    num_steps,infer_loader=None, SF_funct=True, in2spk=False, 
-                                    forward=True, eve_in=True,device=self.device,debug_mode=self.debug_mode,
-                                    checkpoint_path=self.checkpoint_path,cp_add_sav_dict=self.cp_add_dict,)
-        elif self.load_cp_flag:
-            self.results=nu.train.snn_train.train_snn(self.net,self.train_loader,self.test_loader,self.loss,self.num_epochs,self.optimizer,
                                     num_steps,infer_loader=self.infer_loader, SF_funct=True, in2spk=False, 
                                     forward=True, eve_in=True,device=self.device,debug_mode=self.debug_mode,
-                                    checkpoint_path=self.checkpoint_path,checkpoint=self.checkpoint,cp_add_sav_dict=self.cp_add_dict,)
+                                    checkpoint_path=self.checkpoint_path,checkpoint=self.checkpoint,cp_add_sav_dict=self.cp_add_dict,
+                                    test_loader=self.test_loader)
         else:
-            self.results=nu.train.snn_train.train_snn(self.net,self.train_loader,self.test_loader,self.loss,self.num_epochs,self.optimizer,
+            self.results=nu.train.snn_train.train_snn(self.net,self.train_loader,self.val_loader,self.loss,self.num_epochs,self.optimizer,
                                     num_steps,infer_loader=self.infer_loader, SF_funct=True, in2spk=False, 
                                     forward=True, eve_in=True,device=self.device,debug_mode=self.debug_mode,
-                                    checkpoint_path=self.checkpoint_path,cp_add_sav_dict=self.cp_add_dict,)
+                                    checkpoint_path=self.checkpoint_path,cp_add_sav_dict=self.cp_add_dict,
+                                    test_loader=self.test_loader)
 
         # self.results=nu.train.gen_train.train_funct(self.net, self.train_loader, self.test_loader, self.loss, self.num_epochs, 
         #     self.optimizer,device=self.device,quant_tensor=False, infer_iter=self.infer_loader)

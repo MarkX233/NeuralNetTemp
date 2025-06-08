@@ -1,7 +1,7 @@
 __pycache__
 old_pack
-gen_init_file.py
 dist
 test
 src/nnt_cli.egg-info
 build
+test.ipynb

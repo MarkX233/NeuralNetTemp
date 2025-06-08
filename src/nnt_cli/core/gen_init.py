@@ -9,6 +9,8 @@ def generate_package_init(
     exclude_dirs: List[str] = None,
     exclude_files: List[str] = None,
     echo: bool = True,
+    mode: str = 'direct',
+    type_checking: bool = True
 ) -> None:
     """
     Automatically generate the __init__.py file of the package, explicitly import all subpackages and modules (IDE-friendly)
@@ -20,6 +22,9 @@ def generate_package_init(
         exclude_dirs: Excluded directory names (such as ["tests", "docs"])
         exclude_files: Excluded file name (such as ["_private.py"])
         echo: Do not print details.
+        mode: `direct`: from . import modules/packages \\
+            `all`: __all__ = [modules/packages] \\
+            `lazy`: lazy import using importlib and __getattr__
     Example:
         generate_package_init("your_package", recursive=True)
     """
@@ -47,14 +52,50 @@ def generate_package_init(
         elif child.suffix == ".py" and child.stem != "__init__":
             modules.append(child.stem)
     
-    auto_imports = []
-    if subpackages:
-        auto_imports.extend(f"from . import {name}" for name in sorted(subpackages))
-    if modules:
-        auto_imports.extend(f"from . import {name}" for name in sorted(modules))
-    auto_content = "\n".join(auto_imports)
+    init_content = []
+    if mode == 'direct':
+        if subpackages:
+            init_content.extend(f"from . import {name}" for name in sorted(subpackages))
+        if modules:
+            init_content.extend(f"from . import {name}" for name in sorted(modules))
+        auto_content = "\n".join(init_content)
+    elif mode == 'all':
+        init_content.append("__all__ = [\n")
+        if subpackages:
+            init_content.extend([f"    '{name}',\n" for name in sorted(subpackages)])
+        if modules:
+            init_content.extend([f"    '{name}',\n" for name in sorted(modules)])
+        init_content.append("]\n")
+        auto_content = "".join(init_content)
+    elif mode == 'lazy':
+        # import importlib
+        init_content.append("import importlib\n")
+        init_content.append("LAZY_MODULES = [\n")
+        if subpackages:
+            init_content.extend([f"    '{name}',\n" for name in sorted(subpackages)])
+        if modules:
+            init_content.extend([f"    '{name}',\n" for name in sorted(modules)])
+        init_content.append("]\n")
+        init_content.append(
+            "def __getattr__(name):\n"
+            "    if name in LAZY_MODULES:\n"
+            "        mod = importlib.import_module(f'.{name}', __name__)\n"
+            "        globals()[name] = mod\n"
+            "        return mod\n"
+            "    raise AttributeError(f'module {__name__} has no attribute {name}')\n"
+        )
 
-    MARKER_START = "# AUTO-GENERATED SECTION START - DO NOT EDIT\n"
+        if type_checking:
+            init_content.append("\nfrom typing import TYPE_CHECKING\n\n")
+            init_content.append("if TYPE_CHECKING:\n")
+            if subpackages:
+                init_content.extend(f"    from . import {name}\n" for name in sorted(subpackages))
+            if modules:
+                init_content.extend(f"    from . import {name}\n" for name in sorted(modules))
+        auto_content = "".join(init_content)
+
+
+    MARKER_START = "# AUTO-GENERATED SECTION START - OVERWRITE POSSIBLE\n"
     MARKER_END = "# AUTO-GENERATED SECTION END\n"
     marked_content = f"{MARKER_START}{auto_content}\n{MARKER_END}"
 
@@ -88,5 +129,6 @@ def generate_package_init(
                 recursive=True,
                 parent_pkg=f"{current_pkg}.{sub}",
                 exclude_dirs=exclude_dirs,
-                exclude_files=exclude_files
+                exclude_files=exclude_files,
+                mode=mode
             )

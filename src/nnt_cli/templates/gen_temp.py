@@ -58,6 +58,20 @@ class GeneralTemplate():
 
         self.train_method="one"
 
+        self.vali_fr_train=True
+        self.val_size=0.2
+        # If True, the validation set will be split from the training set.
+        # If False, the validation set will be the same as the test set.
+
+        self.with_cache="False"
+        # Using cache to store the dataset with transforms.
+        # Setup in `set_dataset`.
+
+        self.quick_debug=False
+        self.qb_dataset_size=0.1
+        # Used for quick debugging.
+        # If True, the dataset will be a small subset of the original dataset.
+
         # Save switch
         self.sav_final = True
         self.sav_paras = True
@@ -70,6 +84,7 @@ class GeneralTemplate():
         self.infer_size=0.1
         # The size of the infer set. If it is 0.1, then the infer set will be 10% of the test set.
         # If it is 1, then the infer set will be the same as the test set.
+        # The data of infer set will be extracted.
 
 
     def set_iter(self):
@@ -142,8 +157,8 @@ class GeneralTemplate():
 
 
     def train_double_iter(self,no_plot=False):
+        self.init_params()
         if self.load_cp_flag is False:
-            self.init_params()
             self.double_iter_flag=True
             self.train_method="diter"
             self.set_path()
@@ -180,8 +195,8 @@ class GeneralTemplate():
             self.plot_record()
 
     def train_iter(self,no_plot=False):
+        self.init_params()
         if self.load_cp_flag is False:
-            self.init_params()
             self.iter_flag=True
             self.train_method="iter"
             self.set_path()
@@ -469,7 +484,11 @@ class GeneralTemplate():
     @abstractmethod
     def set_train(self):
         """Set the training process here. 
-        The results should be a list containing `Train Loss`, `Train Accuracy`, `Test Accuracy`, `Infer Accuracy`."""
+        The results should be a list containing `Train Loss`, `Train Accuracy`, `Validation Accuracy`, `Infer Accuracy`, 'Test Accuracy.
+        Or a dictionary with the same key
+        These key names and corresponding data will be used for plotting.
+        If you use a dictionary, all the other data besides these key name will also be saved.
+        """
 
         if self.load_cp_flag is True:
         # If you want to use load checkpoint, you should complete this branch.
@@ -486,12 +505,23 @@ class GeneralTemplate():
         
     def set_store_onetime(self):
         
-        self.record[f"{self.vary_title}"] = {
-                "Train Loss": self.results[0],
-                "Train Accuracy": self.results[1],
-                "Test Accuracy": self.results[2],
-                "Infer Accuracy": self.results[3],
-             }
+        if isinstance(self.results, list): # For old version compatibility
+            self.record[f"{self.vary_title}"] = {
+                    "Train Loss": self.results[0],
+                    "Train Accuracy": self.results[1],
+                    "Validation Accuracy": self.results[2],
+                    "Infer Accuracy": self.results[3],
+                }
+            if len(self.results) > 4:
+                self.record["Test Accuracy"] = self.results[4]
+        elif isinstance(self.results, dict): # After version 0.4.10
+            self.record[f"{self.vary_title}"] = {
+                    "Train Loss": self.results.get('Train Loss'),
+                    "Train Accuracy": self.results.get('Train Accuracy'),
+                    "Validation Accuracy": self.results.get('Validation Accuracy'),
+                    "Infer Accuracy": self.results.get('Infer Accuracy'),
+                    "Test Accuracy": self.results.get('Test Accuracy'),
+                }
 
         if self.sav_final is True and self.onetime_flag is False:
             if self.double_iter_flag is True:
@@ -653,22 +683,22 @@ class GeneralTemplate():
         self.set_path()
         try:
             self.set_dataset(preset=True)
-        except RuntimeError:
+        except TypeError:
             print("It seems that dataset doesn't have preset kwarg.")
             self.set_dataset()
 
-        if self.train_preset is not None:
+        if hasattr(self, 'train_preset') and self.train_preset is not None:
             frame0, _ = self.train_preset[dataset_num]
 
             if time_distri:
                 nu.plot.anal_plot.plot_time_step_distribution(self.train_preset, font_scale=font_scale)
 
-            nu.plot.anal_plot.visualize_event_distribution(frame0,title="Pre-Frames Event Distribution Analysis", font_scale=font_scale)
-            nu.plot.anal_plot.visualize_value_distribution(frame0,title="Pre-Frames Value Distribution Analysis", font_scale=font_scale)
+            nu.plot.anal_plot.visualize_event_distribution(frame0,title="Pre-Transformed Frames Event Distribution Analysis", font_scale=font_scale)
+            nu.plot.anal_plot.visualize_value_distribution(frame0,title="Pre-Transformed Frames Value Distribution Analysis", font_scale=font_scale)
         else:
             print("Warning! `train_preset` is not set yet.")
 
-        if self.train_dataset is not None:
+        if hasattr(self, 'train_preset') and self.train_dataset is not None:
 
             frame,label = self.train_dataset[dataset_num]
 

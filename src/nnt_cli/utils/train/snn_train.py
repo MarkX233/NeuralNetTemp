@@ -88,11 +88,12 @@ class forward_pass():
 def train_snn(
     net,
     train_loader,
-    test_loader,
+    vali_loader,
     loss,
     num_epochs,
     optimizer,
     num_steps,
+    test_loader=None,
     forward=True,
     eve_in=False,
     SF_funct=False,
@@ -115,11 +116,14 @@ def train_snn(
     Args:
         net (nn.Module): The SNN model to be trained.
         train_loader (DataLoader): DataLoader for the training dataset.
-        test_loader (DataLoader): DataLoader for the test dataset.
+        vali_loader (DataLoader): DataLoader for the validation dataset. \
+            It is used to evaluate the accuracy of the model after each epoch.
         loss (function): Loss function used for training (e.g., CrossEntropyLoss).
         num_epochs (int): Number of training epochs.
         optimizer (Optimizer or list): Optimizer(s) for updating network parameters.
         num_steps (int): Number of timesteps for SNN simulation.
+        test_loader (DataLoader, optional): DataLoader for the test dataset. \
+            It is used to evaluate the accuracy of the model only once at the end of training.
         forward (bool): Whether to use a forward pass (useful when input data can't directly be sent into network).
         eve_in (bool): Whether the input is an event-based frame.
         SF_funct (bool): Whether to apply a loss function from snntorch.functional (e.g., SF.mse_count_loss).
@@ -151,13 +155,13 @@ def train_snn(
         train_l_list=[]
         train_acc_list=[]
         infer_acc_list=[]
-        test_acc_list=[]
+        vali_acc_list=[]
         loss_fn=loss
     else:
         train_l_list=checkpoint["train_l_list"]
         train_acc_list=checkpoint["train_acc_list"]
         infer_acc_list=checkpoint["infer_acc_list"]
-        test_acc_list=checkpoint["test_acc_list"]
+        vali_acc_list=checkpoint["test_acc_list"]
         cur_epoch=checkpoint["epoch"]
         num_epochs=checkpoint.get("num_epochs",num_epochs)
         num_epochs=num_epochs-cur_epoch-1
@@ -166,7 +170,7 @@ def train_snn(
         if num_epochs<=0:
             print("Warning! The number of epochs is less than or equal to 0. Please check your checkpoint file" \
             "and the number of epochs you set.")
-            return [train_l_list, train_acc_list, test_acc_list, infer_acc_list]
+            return [train_l_list, train_acc_list, vali_acc_list, infer_acc_list]
 
     epoch_range=range(num_epochs)
 
@@ -229,10 +233,10 @@ def train_snn(
             scheduler.step()
         # Update the learning rate at the end of each epoch
 
-        test_acc = eval_acc(test_loader, net, num_steps, device=device,in2spk=in2spk,forward=forward,eve_in=eve_in)
+        vali_acc = eval_acc(vali_loader, net, num_steps, device=device,in2spk=in2spk,forward=forward,eve_in=eve_in)
         train_l_list.append(train_l_sum / n)
         train_acc_list.append(train_acc_sum / n)
-        test_acc_list.append(test_acc)
+        vali_acc_list.append(vali_acc)
 
         # print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f \n'
         #         % (epoch + 1, train_l_sum / n, train_acc_sum / n, test_acc))
@@ -241,7 +245,16 @@ def train_snn(
         if epoch==num_epochs-1:
             flag_last_epoch=True
 
+        test_acc = 0.0
+        if test_loader is not None and flag_last_epoch is True:
+            # Only evaluate the test accuracy at the last epoch.
+            test_acc = eval_acc(test_loader, net, num_steps, device=device,in2spk=in2spk,
+                                forward=forward,eve_in=eve_in,)
+            
+
+        # if infer_loader is not None and flag_last_epoch is True:
         if infer_loader is not None:
+            # Only evaluate the inference accuracy at the last epoch.
             infer_acc = eval_acc(infer_loader, net, num_steps, device=device,in2spk=in2spk,
                                  forward=forward,eve_in=eve_in,sav_layer_en=flag_last_epoch) # Save the input inference data for the last epoch.
             infer_acc_list.append(infer_acc)
@@ -266,7 +279,7 @@ def train_snn(
                     loss_fn,
                     train_l_list,
                     train_acc_list,
-                    test_acc_list,
+                    vali_acc_list,
                     infer_acc_list,
                     checkpoint_path,
                     scheduler=scheduler,
@@ -283,7 +296,7 @@ def train_snn(
                     loss_fn,
                     train_l_list,
                     train_acc_list,
-                    test_acc_list,
+                    vali_acc_list,
                     infer_acc_list,
                     checkpoint_path,
                     cp_retain=cp_num,
@@ -292,7 +305,7 @@ def train_snn(
                 )
 
         if debug_mode is True:
-            print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_l_sum / n:.4f}, Train Acc: {train_acc_sum / n:.3f}, Test Acc: {test_acc:.3f}, Infer Acc: {infer_acc:.3f}")
+            print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_l_sum / n:.4f}, Train Acc: {train_acc_sum / n:.3f}, Test Acc: {vali_acc:.3f}, Infer Acc: {infer_acc:.3f}")
 
         if isinstance(device,str) and device.startswith("cuda") or \
             isinstance(device,torch.device) and device.type == "cuda":
@@ -301,8 +314,19 @@ def train_snn(
         isinstance(device,torch.device) and device.type == "cuda":     
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
+    
+    # By Version 0.4.10, the results API is using a dictionary.
+    results={
+        'Train Loss':train_l_list,
+        'Train Accuracy':train_acc_list,
+        'Validation Accuracy':vali_acc_list,
+        'Infer Accuracy': infer_acc_list,
+        'Test Accuracy':test_acc
+    }
 
-    return [train_l_list, train_acc_list, test_acc_list, infer_acc_list]
+    return results
+
+    # return [train_l_list, train_acc_list, vali_acc_list, infer_acc_list, test_acc]
 
 
 def eval_acc(data_iter, net, num_steps, device="cpu",in2spk=False,forward=False,eve_in=False,sav_layer_en=False):

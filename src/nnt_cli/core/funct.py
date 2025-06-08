@@ -5,20 +5,14 @@ import shutil
 import sys
 import subprocess
 from datetime import datetime
-import torch
+# import torch
 import ast
 
-import nnt_cli
 
-from nnt_cli.core.core_utils import find_files, select_template_interactive, run_git, init_repo, OptTaskRunner, OptTaskRunner_static
+from nnt_cli.core.core_utils import find_files, select_template_interactive, run_git, init_repo
 from nnt_cli.core.gen_init import generate_package_init
 
-nnt_path=Path(nnt_cli.__file__).parent
-
-CUS_DIR= nnt_path / "custom"
-
-CUS_TDIR = CUS_DIR / "custom_templates"
-CUS_UDIR = CUS_DIR / "custom_utils"
+from nnt_cli.path import CUS_DIR, CUS_TDIR, CUS_UDIR
 
 global builtin_tpath
 builtin_tpath = resources.files("nnt_cli.templates")
@@ -72,7 +66,7 @@ def del_files(args):
         print(f"Deleted failed: {str(e)}")
         sys.exit(1)
 
-    generate_package_init(CUS_DIR,recursive=True)
+    generate_package_init(CUS_DIR,recursive=True, mode='lazy')
 
 def save_files(args):
     """Save template to global directory"""
@@ -98,7 +92,7 @@ def save_files(args):
         sys.exit(1)
 
     # Regenerate __init__.py file to add newly saved templates.
-    generate_package_init(CUS_UDIR if args.utils else CUS_TDIR,recursive=True)
+    generate_package_init(CUS_UDIR if args.utils else CUS_TDIR,recursive=True,mode='lazy')
 
 def list_files(args):
     """List all templates or custom utils"""
@@ -217,7 +211,7 @@ def import_custom(args):
     shutil.copytree(str(import_dir), str(CUS_DIR),ignore=shutil.ignore_patterns('.git', '*.git*'),dirs_exist_ok=True)
     print(f"Custom folder {import_dir} are imported to {CUS_DIR}.")
 
-    generate_package_init(CUS_DIR,recursive=True)
+    generate_package_init(CUS_DIR,recursive=True,mode='lazy')
 
     
 def git_proxy(args):
@@ -259,10 +253,15 @@ def sync_command(args):
         print(f"Synchronization failed: {e.stdout}. You can manually use `nnt git` to commit changes.")
         sys.exit(1)
     
-    generate_package_init(CUS_DIR,recursive=True)
+    generate_package_init(CUS_DIR,recursive=True,mode='lazy')
 
 
 def opt_command(args):
+
+    import torch
+
+    from nnt_cli.core.utils_shell import OptTaskRunner, OptTaskRunner_static
+
     tasks = []
     task_args={"train_method": 'opt'} if args.trial <= -1 else {"train_method": 'opt', "n_trials": args.trial}
     thread=torch.cuda.device_count() if args.thread <= -1 else args.thread
@@ -297,6 +296,6 @@ def gen_init_command(args):
     if not pkg_dir.is_dir():
         raise NotADirectoryError(f"'{pkg_dir}' is not a directory.")
 
-    generate_package_init(pkg_dir, recursive=args.recursive, echo=True)
+    generate_package_init(pkg_dir, recursive=args.recursive, echo=True, mode=args.mode)
 
 

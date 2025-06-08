@@ -32,6 +32,7 @@ class DynamicAssignTaskOnGPU():
             - parameters (dict): A dictionary of parameters to pass to the notebook.
                                 The parameters need to be first set in the certain cell with `parameters` tag in the notebook.
         """
+        # You can also set arguments in this method, or you can set them in the command line.
         # self.save_to_target = False
 
         self.notebooks_tasks = [
@@ -40,30 +41,23 @@ class DynamicAssignTaskOnGPU():
             ("L4.ipynb", {"para_mode": True, "num_epochs" : 5}),
         ]
 
-    # def sys_append(self):
-    #     """
-    #     Append the current directory to sys.path to ensure that the script can find the necessary modules.
-    #     """
-    #     if self.cross_dir_mode:
-    #         for file in self.notebooks_tasks:
-    #             if os.path.exists(file[0]):
-    #                 current_dir = os.path.dirname(os.path.abspath(file[0]))
-    #                 if current_dir not in sys.path:
-    #                     sys.path.append(current_dir)
-
 
     
     def get_args(self):
-        parser = argparse.ArgumentParser(description="A script dynamically assigns notebook running on idle GPU.")
+        parser = argparse.ArgumentParser(description="A script dynamically assigns notebook running on idle GPU." \
+        "Default using static mode, meaning one task for each device at a time.")
 
         parser.add_argument("-no","--no_output", action='store_true', help="Disable notebook output display in terminal.")
         parser.add_argument("-k","--kernel", type=str, default=None, help="Determine the running kernel.")
         # GPU under these 2 threshold will be considered as idle.
-        parser.add_argument("-u","--utilt", type=int, default=5, help="GPU utilization threshold (default: 5%%). The lower the value, the stricter the threshold")
-        parser.add_argument("-m","--memt", type=int, default=30, help="GPU memory usage threshold (default: 30%%). The lower the value, the stricter the threshold")
+        parser.add_argument("-u","--utilt", type=int, default=5, help="GPU utilization threshold (default: 5%%). The lower the value, the stricter the threshold" \
+        "Only works when static mode is not enabled. If static mode is enabled, this value will be ignored.")
+        parser.add_argument("-m","--memt", type=int, default=30, help="GPU memory usage threshold (default: 30%%). The lower the value, the stricter the threshold" \
+        "Only works when static mode is not enabled. If static mode is enabled, this value will be ignored.")
         parser.add_argument("-sn","--stanum", type=int, default=1, help="Start number to name the file (default: 1).")
         parser.add_argument("-nl","--no_log", action='store_true', help="Disable notebook output log file.")
-        parser.add_argument("-s","--static", action='store_true', help="Use static mode, which will not check GPU utilization and memory usage, but only check if the GPU is not running any task.")
+        parser.add_argument("-ds","--dis_static", action='store_true', help="Disable static mode. " \
+        "Static mode will not check GPU utilization and memory usage, but only check if the GPU is not running any task.")
         parser.add_argument("-t","--to_target", action='store_true', help="Save the output notebook to the directory of notebook instead of the current working directory.")
 
         try:
@@ -79,7 +73,7 @@ class DynamicAssignTaskOnGPU():
         self.memory_threshold = args.memt / 100
         self.start_num=args.stanum
         self.log=not args.no_log
-        self.static_mode = args.static
+        self.static_mode = not args.dis_static
         self.save_to_target = args.to_target
 
     def execute_task(self,notebook, gpu_id, params, task_count,event):
@@ -233,7 +227,7 @@ class DynamicAssignTaskOnGPU():
                         event.wait()
                         threads.append(thread)
                         gpu_last_assign[gpu_id] = time.time()
-                        time.sleep(60) # Wait for the assigned task to start, which prevents the order is messed up. 
+                        time.sleep(30) # Wait for the assigned task to start, which prevents the order is messed up. 
                         continue
                 else:
                     timestamp = datetime.now().strftime("%H:%M:%S")

@@ -4,11 +4,10 @@ import re
 import numpy as np
 import torch
 import pandas as pd
-from json.decoder import JSONDecodeError
-import json
 import torch.nn as nn
 import snntorch as snn
 import brevitas.nn as qnn
+import ast
 
 from nnt_cli.utils.plot.acc_plot import plot_acc
 from nnt_cli.utils.data_trans import float_quant_tensor2int
@@ -26,7 +25,7 @@ def store_record(record, filename, one_time=False, path="./rec",HPID_en=True):
                 "HPID": hpid,
                 "Train Loss": results[0],
                 "Train Accuracy": results[1],
-                "Test Accuracy": results[2],
+                "Validation Accuracy": results[2],
                 "Infer Accuracy": results[3],
 
             If `one_time` is true, record is a list of results
@@ -46,14 +45,16 @@ def store_record(record, filename, one_time=False, path="./rec",HPID_en=True):
         os.makedirs(path)
 
     flat_record = []
-    if one_time is True:
+    if one_time is True and isinstance(record, list):
         flat_record = {
             "Title": filename,
             "Train Loss": record[0],
             "Train Accuracy": record[1],
-            "Test Accuracy": record[2],
+            "Validation Accuracy": record[2],
             "Infer Accuracy": record[3],
         }
+        if len(record) > 4:
+            flat_record["Test Accuracy"] = record[4]
     else:
         for key, value in record.items():
             flat_row = {"Experiment": key}
@@ -88,7 +89,7 @@ def store_final_results(
     Normally addtional variable set is used to assist plotting.
 
     Args:
-        results (list): A list containing the results of the training and testing process. 
+        results (list): A list or dict containing the results of the training and testing process. 
                         Expected to be in the format [train_loss, train_accuracy, test_accuracy, infer_accuracy].
         titlename (str): The title name to be used for the single result file.
         vary_x (optional): The value of the variable 1.
@@ -114,27 +115,51 @@ def store_final_results(
 
     """
 
-    final_record = {
-        "Title": titlename,
-        f"{vary_x_name}": vary_x,
-        f"{vary_y_name}": vary_y,
-        f"{vary_z_name}": vary_z,
-        # "HPID": hpid,
-        "Train Loss": results[0][-1],
-        "Train Accuracy": results[1][-1],
-        "Test Accuracy": results[2][-1],
-        "Infer Accuracy": results[3][-1],
-    }
+    if isinstance(results, list):
+        final_record = {
+            "Title": titlename,
+            f"{vary_x_name}": vary_x,
+            f"{vary_y_name}": vary_y,
+            f"{vary_z_name}": vary_z,
+            # "HPID": hpid,
+            "Train Loss": results[0][-1],
+            "Train Accuracy": results[1][-1],
+            "Validation Accuracy": results[2][-1],
+            "Infer Accuracy": results[3][-1],
+        }
+
+        if len(results) > 4:
+            
+            if isinstance(results[4],list):
+                last_test_acc=results[4][-1]
+            # elif isinstance(results[4], (int, float, torch.Tensor,)):
+            else:
+                last_test_acc=results[4]
+
+            final_record["Test Accuracy"]=last_test_acc
+            
+    elif isinstance(results,dict):
+        final_record = {
+            "Title": titlename,
+            f"{vary_x_name}": vary_x,
+            f"{vary_y_name}": vary_y,
+            f"{vary_z_name}": vary_z,
+            # "HPID": hpid,
+
+        }
+
+        for key, value in results.items():
+            if isinstance(value, list):
+                final_record[key]=value[-1]
+            else:
+                final_record[key]=value
 
     for key, value in final_record.items():
-        if isinstance(value,list):
-            for i in range(len(value)-1):
-                eq=value[i+1]-value[i]
-            
-            if eq==0:
-                final_record[key]=value[0]
+        if isinstance(value, list):
+            if all(x == value[0] for x in value):
+                final_record[key] = value[0]
             else:
-                final_record[key]=str(value)
+                final_record[key] = str(value)
                 
 
     if hpid is not None:
@@ -214,13 +239,21 @@ def load_final_csv_and_plot(fpath,xname,yname=None):
 
         train_loss = df["Train Loss"].tolist()
         train_acc = df["Train Accuracy"].tolist()
-        test_acc = df["Test Accuracy"].tolist()
+        vali_acc = df["Validation Accuracy"].tolist()
         infer_acc = df["Infer Accuracy"].tolist()
         title = df["Title"].tolist()
+
+        if "Test Accuracy" in df.columns:
+            test_acc = df["Test Accuracy"].tolist()
+        else:
+            test_acc = vali_acc
+            # If there is no test accuracy, use validation accuracy.
 
         x = df[xname].tolist()
 
         subtitle = f"x-Axis {xname}: {x}"
+
+        cus_title = ['Loss', 'Train Accuracy', 'Test Accuracy', 'Inference Accuracy']
 
         if isinstance(x[0], str):
             x = range(1, len(x) + 1)
@@ -246,6 +279,8 @@ def load_final_csv_and_plot(fpath,xname,yname=None):
 
                 subtitle = f"x-Axis {xname}: {x_y}"
 
+                
+
                 plot_acc(
                     0,
                     train_loss_y,
@@ -256,7 +291,8 @@ def load_final_csv_and_plot(fpath,xname,yname=None):
                     xlist=x_y,
                     sub_title=subtitle,
                     store_path=dir_path,
-                    custom_xlabel=xname
+                    custom_xlabel=xname,
+                    cus_title=cus_title
                 )
         else:    
             plot_acc(
@@ -269,7 +305,8 @@ def load_final_csv_and_plot(fpath,xname,yname=None):
                 xlist=x,
                 sub_title=subtitle,
                 store_path=dir_path,
-                custom_xlabel=xname
+                custom_xlabel=xname,
+                cus_title=cus_title
                 )
     except:
         raise RuntimeError("Can't plot the final results!")
@@ -285,8 +322,14 @@ def load_sin_res(fpath):
     train_acc = df["Train Accuracy"].tolist()
     test_acc = df["Test Accuracy"].tolist()
     infer_acc = df["Infer Accuracy"].tolist()
-
-    return [train_loss, train_acc, test_acc, infer_acc]
+    
+    if 'Validation Accuracy' in df.columns:
+        vali_acc = df["Validation Accuracy"].tolist()
+        return [train_loss, train_acc, vali_acc, infer_acc, test_acc]
+    else:
+        # Old version of results, without validation accuracy.
+        print("Warning! No validation accuracy in the results file.")
+        return [train_loss, train_acc, test_acc, infer_acc]
 
 
 def load_record_and_plot(fpath):
@@ -295,43 +338,75 @@ def load_record_and_plot(fpath):
     file_name = os.path.splitext(os.path.basename(fpath))[0]
     dir_path = os.path.dirname(fpath)
 
-    i=0
-    for i in range(len(df)):
+    plot_key=[
+        "Train Loss",
+        "Train Accuracy",
+        "Test Accuracy",
+        "Infer Accuracy",
+        "Validation Accuracy"
+    ]
 
+    valid_key=[]
+    for key in plot_key:
+        if key in df.columns:
+            valid_key.append(key)
+        else:
+            print(f"Warnings, can't load results of {key}.")
+
+    plot_results={}
+
+    for i in range(len(df)):
         sup_title=df["Experiment"][i]
 
-        try:
-            train_loss = json.loads(df["Train Loss"][i])
-        except JSONDecodeError:
-            print(f"Warning! Can't load train loss value of {sup_title} in {fpath}. Proceeding to the next one.")
-            continue
-        try:
-            train_acc = json.loads(df["Train Accuracy"][i])
-        except JSONDecodeError:
-            print(f"Warning! Can't load train accuracy value of {sup_title} in {fpath}. Proceeding to the next one.")
-            continue
-        try:
-            test_acc = json.loads(df["Test Accuracy"][i])
-        except JSONDecodeError:
-            print(f"Warning! Can't load test accuracy value of {sup_title} in {fpath}. Proceeding to the next one.")
-            continue
-        try:
-            infer_acc = json.loads(df["Infer Accuracy"][i])
-        except JSONDecodeError:
-            print(f"Warning! Can't load inference accuracy value of {sup_title} in {fpath}. Proceeding to the next one.")
-            continue
-        
+        for key in valid_key:
+            if isinstance(df[key][i], str):
+                plot_results[key]=ast.literal_eval(df[key][i])
+            else:
+                plot_results[key]=df[key][i]
 
-        plot_acc(
-            len(test_acc),
-            train_loss,
-            train_acc,
-            test_acc,
-            infer_acc,
-            suptitle=sup_title,
-            sub_title=file_name,
-            store_path=dir_path
-        )
+        if "Validation Accuracy" in plot_results:
+
+            cus_title = ['Loss', 'Train Accuracy', 'Validation Accuracy', 'Evaluation Accuracy']
+
+            if isinstance(plot_results['Test Accuracy'], list):
+                test_acc=plot_results['Test Accuracy'][-1]
+            else:
+                test_acc=plot_results['Test Accuracy']
+
+            if isinstance(plot_results['Infer Accuracy'], list):
+                infer_acc=plot_results['Infer Accuracy'][-1]
+            else:
+                infer_acc=plot_results['Infer Accuracy']
+
+
+            text_in_sub_4 = [f"Test Accuracy: {test_acc:.6f}",
+                                f"Inference Accuracy: {infer_acc:.6f}"]
+
+            plot_acc(
+                len(plot_results['Train Loss']),
+                plot_results['Train Loss'],
+                plot_results['Train Accuracy'],
+                plot_results['Validation Accuracy'],
+                0,
+                suptitle=sup_title,
+                sub_title=file_name,
+                store_path=dir_path,
+                cus_title=cus_title,
+                text_in_sub_4=text_in_sub_4
+            )
+        
+        else:
+            # Old version of results, without validation accuracy.
+            plot_acc(
+                len(plot_results['Train Loss']),
+                plot_results['Train Loss'],
+                plot_results['Train Accuracy'],
+                plot_results['Test Accuracy'],
+                plot_results['Infer Accuracy'],
+                suptitle=sup_title,
+                sub_title=file_name,
+                store_path=dir_path
+            )
 
 def load_content(fpath,dic_name):
     """
